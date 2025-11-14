@@ -1,0 +1,52 @@
+{
+    "name": "mindtwo/laravel-auto-translatable",
+    "description": "AI-powered translation package for Laravel with smart markdown chunking and extensible adapters",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "mindtwo GmbH",
+            "email": "info@mindtwo.de"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "echolabsdev/prism": "^0.89",
+        "illuminate/contracts": "^11.0",
+        "illuminate/support": "^11.0",
+        "spatie/laravel-package-tools": "^1.92"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0"
+    },
+    "suggest": {
+        "spatie/laravel-translatable": "For automatic JSON column translation storage"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mindtwo\\AutoTranslatable\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Mindtwo\\AutoTranslatable\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Mindtwo\\AutoTranslatable\\AutoTranslatableServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
