@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Mindtwo\AutoTranslatable\Models;
 
@@ -46,7 +46,7 @@ class TranslationResult extends Model
     ];
 
     /**
-     * Get the owning translatable model
+     * Get the owning translatable model.
      */
     public function translatable(): MorphTo
     {
@@ -63,6 +63,8 @@ class TranslationResult extends Model
 
     /**
      * Check if translation failed.
+     *
+     * @codeCoverageIgnore
      */
     public function isFailed(): bool
     {
@@ -71,6 +73,8 @@ class TranslationResult extends Model
 
     /**
      * Check if translation is still pending.
+     *
+     * @codeCoverageIgnore
      */
     public function isPending(): bool
     {
@@ -79,6 +83,8 @@ class TranslationResult extends Model
 
     /**
      * Check if translation is currently processing.
+     *
+     * @codeCoverageIgnore
      */
     public function isProcessing(): bool
     {

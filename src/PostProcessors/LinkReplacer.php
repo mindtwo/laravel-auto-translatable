@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Mindtwo\AutoTranslatable\PostProcessors;
 
@@ -17,8 +17,8 @@ class LinkReplacer implements PostProcessor
     public function __construct()
     {
         $this->internalHosts = array_map(
-            fn ($host) => rtrim($host, '/'),
-            config('auto-translatable.link_replacement.internal_hosts')
+            fn ($host) => mb_rtrim($host, '/'),
+            config('auto-translatable.link_replacement.internal_hosts'),
         );
 
         if ($resolverClass = config('auto-translatable.link_replacement.resolver')) {
@@ -36,10 +36,7 @@ class LinkReplacer implements PostProcessor
     {
         // Load mapping once per translation
         if ($this->resolver && empty($this->mappingCache)) {
-            $this->mappingCache = $this->resolver->getMapping(
-                $result->source_locale,
-                $result->target_locale
-            );
+            $this->mappingCache = $this->resolver->getMapping($result->source_locale, $result->target_locale);
         }
 
         // Match all markdown links: [text](url)
@@ -67,7 +64,7 @@ class LinkReplacer implements PostProcessor
                 // Handle unmapped internal link
                 return $this->handleUnmappedLink($text, $url);
             },
-            $content
+            $content,
         );
     }
 
@@ -104,7 +101,7 @@ class LinkReplacer implements PostProcessor
         // Convert full internal URL to relative path
         foreach ($this->internalHosts as $host) {
             if (str_starts_with($url, $host)) {
-                return '/'.ltrim(substr($url, strlen($host)), '/');
+                return '/'.mb_ltrim(mb_substr($url, mb_strlen($host)), '/');
             }
         }
 
@@ -132,7 +129,7 @@ class LinkReplacer implements PostProcessor
         }
 
         // Try dynamic resolver
-        if ($this->resolver) {
+        if ($this->resolver instanceof LinkMappingResolver) {
             $resolved = $this->resolver->resolve($normalizedUrl, $result->source_locale, $result->target_locale);
 
             if ($resolved !== null) {
@@ -165,13 +162,13 @@ class LinkReplacer implements PostProcessor
         // Simple implementation - look for locale in domain
         foreach ($this->internalHosts as $host) {
             if (str_contains($host, ".{$locale}") || str_ends_with($host, "/{$locale}")) {
-                return rtrim($host, '/').'/'.ltrim($path, '/');
+                return mb_rtrim($host, '/').'/'.mb_ltrim($path, '/');
             }
         }
 
         // Fallback to first internal host
         if (! empty($this->internalHosts)) {
-            return rtrim($this->internalHosts[0], '/').'/'.ltrim($path, '/');
+            return mb_rtrim($this->internalHosts[0], '/').'/'.mb_ltrim($path, '/');
         }
 
         return $path;

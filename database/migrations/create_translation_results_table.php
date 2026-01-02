@@ -1,15 +1,14 @@
-<?php
+<?php declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
 
-return new class extends Migration
-{
+return new class extends Migration {
     public function up(): void
     {
-        Schema::create('translation_results', function (Blueprint $table) {
+        Schema::create('translation_results', function (Blueprint $table): void {
             $table->id();
             $table->nullableMorphs('translatable');
             $table->string('field_name')->nullable();
@@ -24,7 +23,10 @@ return new class extends Migration
             $table->timestamps();
 
             // Indexes for common queries
-            $table->index(['translatable_type', 'translatable_id', 'field_name', 'target_locale'], 'translation_lookup');
+            $table->index(
+                ['translatable_type', 'translatable_id', 'field_name', 'target_locale'],
+                'translation_lookup',
+            );
             $table->index('status');
         });
     }

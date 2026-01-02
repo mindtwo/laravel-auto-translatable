@@ -1,9 +1,10 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Mindtwo\AutoTranslatable\Tests;
 
 use Mindtwo\AutoTranslatable\AutoTranslatableServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
+use Prism\Prism\PrismServiceProvider;
 
 class TestCase extends Orchestra
 {
@@ -16,9 +17,7 @@ class TestCase extends Orchestra
 
     protected function getPackageProviders($app): array
     {
-        return [
-            AutoTranslatableServiceProvider::class,
-        ];
+        return [PrismServiceProvider::class, AutoTranslatableServiceProvider::class];
     }
 
     protected function getEnvironmentSetUp($app): void
@@ -29,5 +28,6 @@ class TestCase extends Orchestra
             'database' => ':memory:',
             'prefix' => '',
         ]);
+        config()->set('queue.default', 'sync');
     }
 }

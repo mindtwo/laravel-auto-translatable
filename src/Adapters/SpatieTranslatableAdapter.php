@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Mindtwo\AutoTranslatable\Adapters;
 
@@ -11,15 +11,15 @@ use Spatie\Translatable\HasTranslations;
 class SpatieTranslatableAdapter implements TranslatableAdapter
 {
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function supports(Model $model): bool
     {
-        return in_array(HasTranslations::class, class_uses_recursive($model));
+        return in_array(HasTranslations::class, class_uses_recursive($model), true);
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function getAvailableLocales(Model $model): array
     {
@@ -27,7 +27,7 @@ class SpatieTranslatableAdapter implements TranslatableAdapter
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function getSourceLocale(Model $model): string
     {
@@ -35,7 +35,7 @@ class SpatieTranslatableAdapter implements TranslatableAdapter
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function getFieldValue(Model $model, string $field, string $locale): ?string
     {
@@ -51,9 +51,10 @@ class SpatieTranslatableAdapter implements TranslatableAdapter
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
-    public function applyTranslations(Model $model, Collection $results): void {
+    public function applyTranslations(Model $model, Collection $results): void
+    {
         if (! $this->supports($model)) {
             throw new InvalidArgumentException('Model does not use Spatie HasTranslations trait');
         }

@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Mindtwo\AutoTranslatable\Events;
 
@@ -9,11 +9,12 @@ use Mindtwo\AutoTranslatable\Models\TranslationResult;
 
 class TranslationCompleted
 {
-    use Dispatchable, SerializesModels;
+    use Dispatchable;
+    use SerializesModels;
 
     public function __construct(
         public TranslationResult $result,
         public ?Model $model = null,
-        public ?string $field = null
+        public ?string $field = null,
     ) {}
 }

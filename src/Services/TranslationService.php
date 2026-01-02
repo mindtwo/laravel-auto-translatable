@@ -1,20 +1,23 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Mindtwo\AutoTranslatable\Services;
 
 use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Mindtwo\AutoTranslatable\Contracts\PostProcessor;
-use Mindtwo\AutoTranslatable\Contracts\TranslationProvider;
 use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
+use Mindtwo\AutoTranslatable\Events\ModelTranslationCompleted;
+use Mindtwo\AutoTranslatable\Events\TranslationCompleted;
+use Mindtwo\AutoTranslatable\Events\TranslationFailed;
 use Mindtwo\AutoTranslatable\Models\TranslationResult;
 
 class TranslationService
 {
     public function __construct(
+        protected ChunkingStrategyResolver $strategyResolver,
         protected TranslationProvider $provider,
-        protected MarkdownChunker $chunker
     ) {}
 
     /**
@@ -26,7 +29,7 @@ class TranslationService
         string $content,
         string $sourceLocale,
         string $targetLocale,
-        array $options = []
+        array $options = [],
     ): TranslationResult {
         $result = TranslationResult::query()->create([
             'source_locale' => $sourceLocale,
@@ -41,11 +44,12 @@ class TranslationService
                 $sourceLocale,
                 $targetLocale,
                 $result,
-                $options
+                $options,
             );
 
             $result->markAsCompleted($translatedContent, [
-                'provider' => get_class($this->provider),
+                'provider' => config('auto-translatable.provider'),
+                'model' => config('auto-translatable.model'),
             ]);
         } catch (Exception $e) {
             $result->markAsFailed($e->getMessage());
@@ -60,6 +64,7 @@ class TranslationService
      * Translate multiple fields on a model.
      *
      * @param array<string, string> $fields
+     *
      * @return Collection<TranslationResult>
      */
     public function translateModel(
@@ -67,39 +72,62 @@ class TranslationService
         array $fields,
         string $sourceLocale,
         string $targetLocale,
-        array $options = []
+        array $options = [],
     ): Collection {
         $results = collect();
 
-        foreach ($fields as $field => $content) {
-            $result = TranslationResult::query()->create([
-                'translatable_type' => $model->getMorphClass(),
-                'translatable_id' => $model->getKey(),
-                'field_name' => $field,
-                'source_locale' => $sourceLocale,
-                'target_locale' => $targetLocale,
-                'source_content' => $content,
-                'status' => TranslationStatus::PENDING,
-            ]);
+        DB::transaction(function () use ($model, $fields, $results, $sourceLocale, $targetLocale, $options): void {
+            foreach ($fields as $field => $content) {
+                if ($model->hasPendingTranslationResult($field, $targetLocale)) {
+                    continue;
+                }
 
-            try {
-                $translatedContent = $this->performTranslation(
-                    $content,
-                    $sourceLocale,
-                    $targetLocale,
-                    $result,
-                    $options
-                );
-
-                $result->markAsCompleted($translatedContent, [
-                    'provider' => get_class($this->provider),
+                $result = TranslationResult::query()->create([
+                    'translatable_type' => $model->getMorphClass(),
+                    'translatable_id' => $model->getKey(),
+                    'field_name' => $field,
+                    'source_locale' => $sourceLocale,
+                    'target_locale' => $targetLocale,
+                    'source_content' => $content,
+                    'status' => TranslationStatus::PENDING,
                 ]);
 
-                $results->push($result);
-            } catch (Exception $e) {
-                $result->markAsFailed($e->getMessage());
-                $results->push($result);
+                try {
+                    // Get field-specific chunking strategy
+                    $fieldOptions = $options;
+
+                    if (isset($options['chunking_strategies'][$field])) {
+                        $fieldOptions['chunking_strategy'] = $options['chunking_strategies'][$field];
+                    }
+
+                    $translatedContent = $this->performTranslation(
+                        $content,
+                        $sourceLocale,
+                        $targetLocale,
+                        $result,
+                        $fieldOptions,
+                    );
+
+                    $result->markAsCompleted($translatedContent, [
+                        'provider' => config('auto-translatable.provider').':'.config('auto-translatable.model'),
+                        'model' => $model->getMorphClass(),
+                        'model_id' => $model->getKey(),
+                    ]);
+
+                    event(new TranslationCompleted($result, $model, $field));
+
+                    $results->push($result);
+                } catch (Exception $e) {
+                    $result->markAsFailed($e->getMessage());
+                    event(new TranslationFailed($result, $e->getMessage(), $model, $field));
+                    $results->push($result);
+                }
             }
+        });
+
+        // Fire model translation completed event if we have results
+        if ($results->isNotEmpty()) {
+            event(new ModelTranslationCompleted($model, $results, $fields));
         }
 
         return $results;
@@ -113,37 +141,32 @@ class TranslationService
         string $sourceLocale,
         string $targetLocale,
         TranslationResult $result,
-        array $options
+        array $options,
     ): string {
         $result->markAsProcessing();
 
-        // Get chunk size from options or config
-        $chunkSize = $options['chunk_size'] ?? config('auto-translatable.chunk_size', 3000);
+        $chunkSize = $options['chunk_size'] ?? config('auto-translatable.chunk_size', 80000);
 
-        // Chunk the content if needed
-        $chunks = $this->chunker->chunk($content, $chunkSize);
+        // Resolve chunking strategy (explicit or auto-detect)
+        $strategyName = $options['chunking_strategy'] ?? 'auto';
+        $strategy = $this->strategyResolver->resolve($content, $strategyName);
 
-        // Update chunks count
+        $chunks = $strategy->chunk($content, $chunkSize);
         $result->update(['chunks_count' => count($chunks)]);
 
         // Translate each chunk
         $translatedChunks = [];
+
         foreach ($chunks as $chunk) {
-            $translated = $this->provider->translate(
-                $chunk['content'],
-                $sourceLocale,
-                $targetLocale,
-                $options
-            );
+            $translated = $this->provider->translateChunk($chunk, $sourceLocale, $targetLocale, $options);
 
             $translatedChunks[] = $translated;
         }
 
-        // Combine translated chunks
+        // Combine chunks and apply post-processing
         $translatedContent = implode("\n\n", $translatedChunks);
-
-        // Apply post-processors
         $postProcessors = $this->getPostProcessors($options);
+
         foreach ($postProcessors as $processor) {
             $translatedContent = $processor->process($translatedContent, $result);
         }
@@ -151,13 +174,8 @@ class TranslationService
         return $translatedContent;
     }
 
-    public function getProviderClass(): string
-    {
-        return get_class($this->provider);
-    }
-
     /**
-     * Get post-processors to apply
+     * Get post-processors to apply.
      *
      * @return array<PostProcessor>
      */

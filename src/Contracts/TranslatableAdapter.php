@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Mindtwo\AutoTranslatable\Contracts;
 
@@ -34,7 +34,7 @@ interface TranslatableAdapter
     /**
      * Apply translation results to the model.
      *
-     * @param  Collection<TranslationResult>  $results
+     * @param Collection<TranslationResult> $results
      */
     public function applyTranslations(Model $model, Collection $results): void;
 }
