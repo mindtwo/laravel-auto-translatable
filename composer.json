@@ -11,22 +11,22 @@
     ],
     "require": {
         "php": "^8.2",
-        "illuminate/contracts": "^11.0",
-        "illuminate/support": "^11.0",
+        "illuminate/contracts": "^11.0||^12.0",
+        "illuminate/support": "^11.0||^12.0",
         "laravel-lang/native-locale-names": "^2.5",
         "league/commonmark": "^2.5",
-        "prism-php/prism": "^0.98.0",
+        "prism-php/prism": "^0.99.11",
         "spatie/laravel-package-tools": "^1.92"
     },
     "require-dev": {
         "chiiya/code-style-php": "^3.3",
         "mindtwo/laravel-translatable": "^2.1",
-        "orchestra/testbench": "^9.0",
-        "pestphp/pest": "^3.0",
-        "pestphp/pest-plugin-laravel": "^3.0",
+        "orchestra/testbench": "^10.0",
+        "pestphp/pest": "^4.3",
+        "pestphp/pest-plugin-laravel": "^4.0",
         "phpro/grumphp": "v2.x-dev",
         "spatie/laravel-translatable": "^6.11",
-        "yethee/tiktoken": "^0.12"
+        "yethee/tiktoken": "^1.1"
     },
     "suggest": {
         "spatie/laravel-translatable": "For automatic JSON column translation storage",
