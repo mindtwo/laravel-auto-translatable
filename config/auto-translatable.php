@@ -15,7 +15,7 @@ return [
 
     'provider' => env('AUTO_TRANSLATABLE_PROVIDER', 'anthropic'),
 
-    'model' => env('AUTO_TRANSLATABLE_MODEL', 'claude-3-5-sonnet-20241022'),
+    'model' => env('AUTO_TRANSLATABLE_MODEL', 'claude-sonnet-4-5'),
 
     /*
     |--------------------------------------------------------------------------
@@ -39,7 +39,7 @@ return [
 
     'chunk_size' => env('AUTO_TRANSLATABLE_CHUNK_SIZE', 80000),
 
-    'output_tokens' => env('AUTO_TRANSLATABLE_OUTPUT_TOKENS', 100000),
+    'output_tokens' => env('AUTO_TRANSLATABLE_OUTPUT_TOKENS', 64000),
 
     /*
     |--------------------------------------------------------------------------
