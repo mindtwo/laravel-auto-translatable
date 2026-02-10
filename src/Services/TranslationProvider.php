@@ -27,6 +27,7 @@ class TranslationProvider
             : $this->buildSystemPromptPlain();
 
         $response = Prism::text()
+            ->withClientOptions(['timeout' => 500])
             ->using($provider, $model)
             ->withSystemPrompt($systemPrompt)
             ->withPrompt($prompt)
