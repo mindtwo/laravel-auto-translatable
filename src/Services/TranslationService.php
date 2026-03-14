@@ -5,7 +5,6 @@ namespace Mindtwo\AutoTranslatable\Services;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Mindtwo\AutoTranslatable\Contracts\PostProcessor;
 use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
 use Mindtwo\AutoTranslatable\Events\ModelTranslationCompleted;
@@ -76,54 +75,52 @@ class TranslationService
     ): Collection {
         $results = collect();
 
-        DB::transaction(function () use ($model, $fields, $results, $sourceLocale, $targetLocale, $options): void {
-            foreach ($fields as $field => $content) {
-                if ($model->hasPendingTranslationResult($field, $targetLocale)) {
-                    continue;
+        foreach ($fields as $field => $content) {
+            if ($model->hasPendingTranslationResult($field, $targetLocale)) {
+                continue;
+            }
+
+            $result = TranslationResult::query()->create([
+                'translatable_type' => $model->getMorphClass(),
+                'translatable_id' => $model->getKey(),
+                'field_name' => $field,
+                'source_locale' => $sourceLocale,
+                'target_locale' => $targetLocale,
+                'source_content' => $content,
+                'status' => TranslationStatus::PENDING,
+            ]);
+
+            try {
+                // Get field-specific chunking strategy
+                $fieldOptions = $options;
+
+                if (isset($options['chunking_strategies'][$field])) {
+                    $fieldOptions['chunking_strategy'] = $options['chunking_strategies'][$field];
                 }
 
-                $result = TranslationResult::query()->create([
-                    'translatable_type' => $model->getMorphClass(),
-                    'translatable_id' => $model->getKey(),
-                    'field_name' => $field,
-                    'source_locale' => $sourceLocale,
-                    'target_locale' => $targetLocale,
-                    'source_content' => $content,
-                    'status' => TranslationStatus::PENDING,
+                $translatedContent = $this->performTranslation(
+                    $content,
+                    $sourceLocale,
+                    $targetLocale,
+                    $result,
+                    $fieldOptions,
+                );
+
+                $result->markAsCompleted($translatedContent, [
+                    'provider' => config('auto-translatable.provider').':'.config('auto-translatable.model'),
+                    'model' => $model->getMorphClass(),
+                    'model_id' => $model->getKey(),
                 ]);
 
-                try {
-                    // Get field-specific chunking strategy
-                    $fieldOptions = $options;
+                event(new TranslationCompleted($result, $model, $field));
 
-                    if (isset($options['chunking_strategies'][$field])) {
-                        $fieldOptions['chunking_strategy'] = $options['chunking_strategies'][$field];
-                    }
-
-                    $translatedContent = $this->performTranslation(
-                        $content,
-                        $sourceLocale,
-                        $targetLocale,
-                        $result,
-                        $fieldOptions,
-                    );
-
-                    $result->markAsCompleted($translatedContent, [
-                        'provider' => config('auto-translatable.provider').':'.config('auto-translatable.model'),
-                        'model' => $model->getMorphClass(),
-                        'model_id' => $model->getKey(),
-                    ]);
-
-                    event(new TranslationCompleted($result, $model, $field));
-
-                    $results->push($result);
-                } catch (Exception $e) {
-                    $result->markAsFailed($e->getMessage());
-                    event(new TranslationFailed($result, $e->getMessage(), $model, $field));
-                    $results->push($result);
-                }
+                $results->push($result);
+            } catch (Exception $e) {
+                $result->markAsFailed($e->getMessage());
+                event(new TranslationFailed($result, $e->getMessage(), $model, $field));
+                $results->push($result);
             }
-        });
+        }
 
         // Fire model translation completed event if we have results
         if ($results->isNotEmpty()) {
