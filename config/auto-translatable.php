@@ -63,6 +63,8 @@ return [
 
     'queue_name' => env('AUTO_TRANSLATABLE_QUEUE_NAME', 'translations'),
 
+    'queue_timeout' => env('AUTO_TRANSLATABLE_QUEUE_TIMEOUT', 600),
+
     /*
     |--------------------------------------------------------------------------
     | Link Replacement

@@ -19,6 +19,9 @@ class TranslateContent implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    /** The number of seconds the job can run before timing out. */
+    public int $timeout;
+
     public function __construct(
         public Model $model,
         public array $fields,
@@ -28,6 +31,7 @@ class TranslateContent implements ShouldQueue
     ) {
         $this->onConnection(config('auto-translatable.queue_connection'));
         $this->onQueue(config('auto-translatable.queue_name', 'translations'));
+        $this->timeout = (int) config('auto-translatable.queue_timeout', 600);
     }
 
     /**
