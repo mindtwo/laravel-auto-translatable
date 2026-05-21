@@ -3,16 +3,18 @@
 namespace Mindtwo\AutoTranslatable\Services\Markdown\Chunking;
 
 /**
- * Represents a node in the markdown document tree.
+ * A node in the parsed markdown document tree.
  *
- * Can be either a leaf node (text, code, table) or a heading with children.
+ * A node is either a leaf (text, code, table) or a heading with children.
  */
 class MarkdownNode
 {
     /**
-     * @param int $tokenCount Token count for this node only (not including children)
-     * @param string $raw Raw markdown content for this node
-     * @param array<MarkdownNode> $children Child nodes (for headings), empty for leaf nodes
+     * Create a new markdown node.
+     *
+     * @param int $tokenCount number of tokens in this node alone, excluding children
+     * @param string $raw raw markdown source for this node
+     * @param array<int, MarkdownNode> $children child nodes (headings only); empty for leaves
      */
     public function __construct(
         public readonly int $tokenCount,
@@ -21,7 +23,7 @@ class MarkdownNode
     ) {}
 
     /**
-     * Calculate total token count including all descendants.
+     * Get the total token count for this node and all of its descendants.
      */
     public function totalTokens(): int
     {

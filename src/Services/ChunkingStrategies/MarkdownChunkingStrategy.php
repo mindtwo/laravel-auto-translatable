@@ -7,12 +7,17 @@ use Mindtwo\AutoTranslatable\Services\Markdown\MarkdownChunker;
 
 class MarkdownChunkingStrategy implements ChunkingStrategy
 {
+    /**
+     * Create a new markdown chunking strategy.
+     */
     public function __construct(
         private readonly MarkdownChunker $chunker,
     ) {}
 
     /**
-     * {@inheritDoc}
+     * Chunk markdown content while preserving structural boundaries.
+     *
+     * @return array<int, string>
      */
     public function chunk(string $content, int $maxTokens): array
     {
@@ -20,23 +25,23 @@ class MarkdownChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * {@inheritDoc}
+     * Determine if the content contains markdown syntax.
      */
     public function canHandle(string $content): bool
     {
         return (bool) preg_match(
-            '/^#{1,6}\s|' // Heading at start
-            .'\n#{1,6}\s|' // Heading after newline
-            .'```|' // Code fence
-            .'\*\*[^*]+\*\*|' // Bold
-            .'__[^_]+__|' // Bold (underscores)
-            .'\[.+\]\(.+\)/', // Link
+            '/^#{1,6}\s|' // heading at start
+            .'\n#{1,6}\s|' // heading after a newline
+            .'```|' // code fence
+            .'\*\*[^*]+\*\*|' // bold (asterisks)
+            .'__[^_]+__|' // bold (underscores)
+            .'\[.+\]\(.+\)/', // link
             $content,
         );
     }
 
     /**
-     * {@inheritDoc}
+     * Get the strategy identifier.
      */
     public function getName(): string
     {

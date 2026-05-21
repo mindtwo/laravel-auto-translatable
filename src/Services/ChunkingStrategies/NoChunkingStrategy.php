@@ -7,7 +7,9 @@ use Mindtwo\AutoTranslatable\Contracts\ChunkingStrategy;
 class NoChunkingStrategy implements ChunkingStrategy
 {
     /**
-     * {@inheritDoc}
+     * Return the content as a single chunk.
+     *
+     * @return array<int, string>
      */
     public function chunk(string $content, int $maxTokens): array
     {
@@ -15,7 +17,9 @@ class NoChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * {@inheritDoc}
+     * Determine if this strategy can handle the given content.
+     *
+     * The pass-through strategy is opt-in and never matches during auto-detection.
      */
     public function canHandle(string $content): bool
     {
@@ -23,7 +27,7 @@ class NoChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * {@inheritDoc}
+     * Get the strategy identifier.
      */
     public function getName(): string
     {

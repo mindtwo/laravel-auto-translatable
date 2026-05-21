@@ -6,12 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use Mindtwo\AutoTranslatable\Contracts\TranslatableAdapter;
+use Mindtwo\AutoTranslatable\Models\TranslationResult;
+use Mindtwo\AutoTranslatable\Support\Config;
 use mindtwo\LaravelTranslatable\Traits\HasTranslations;
 
 class MindtwoTranslatableAdapter implements TranslatableAdapter
 {
     /**
-     * {@inheritDoc}
+     * Determine if the model uses the mindtwo HasTranslations trait.
      */
     public function supports(Model $model): bool
     {
@@ -19,23 +21,29 @@ class MindtwoTranslatableAdapter implements TranslatableAdapter
     }
 
     /**
-     * {@inheritDoc}
+     * Get the locales that translations should be generated for.
+     *
+     * @return array<int, string>
      */
     public function getAvailableLocales(Model $model): array
     {
-        return config('auto-translatable.available_locales', []);
+        return Config::stringList('auto-translatable.available_locales');
     }
 
     /**
-     * {@inheritDoc}
+     * Get the source locale that the model's content is written in.
      */
     public function getSourceLocale(Model $model): string
     {
-        return $model->defaultLocaleOnModel();
+        assert(method_exists($model, 'defaultLocaleOnModel'));
+
+        $locale = $model->defaultLocaleOnModel();
+
+        return is_scalar($locale) ? (string) $locale : '';
     }
 
     /**
-     * {@inheritDoc}
+     * Get the value of the given attribute in the given locale.
      */
     public function getFieldValue(Model $model, string $field, string $locale): ?string
     {
@@ -43,17 +51,29 @@ class MindtwoTranslatableAdapter implements TranslatableAdapter
             return null;
         }
 
-        return $model->getTranslation($field, $locale);
+        assert(method_exists($model, 'getTranslation'));
+
+        $value = $model->getTranslation($field, $locale);
+
+        if ($value === null) {
+            return null;
+        }
+
+        return is_scalar($value) ? (string) $value : null;
     }
 
     /**
-     * {@inheritDoc}
+     * Persist the completed translation results onto the model.
+     *
+     * @param Collection<int, TranslationResult> $results
      */
     public function applyTranslations(Model $model, Collection $results): void
     {
         if (! $this->supports($model)) {
-            throw new InvalidArgumentException('Model does not use Spatie HasTranslations trait');
+            throw new InvalidArgumentException('Model does not use mindtwo HasTranslations trait');
         }
+
+        assert(method_exists($model, 'setTranslation'));
 
         foreach ($results as $result) {
             if (! $result->isCompleted()) {

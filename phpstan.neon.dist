@@ -1,0 +1,15 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: max
+    paths:
+        - src
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # The trait is consumed by user models, never by code inside src/.
+        # Excluding it from analysis would hide real bugs in the trait itself,
+        # so we keep the trait analysed and silence the unused-trait warning.
+        -
+            message: '#Trait Mindtwo\\AutoTranslatable\\Concerns\\HasAutoTranslations is used zero times and is not analysed\.#'
+            path: src/Concerns/HasAutoTranslations.php

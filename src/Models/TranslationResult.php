@@ -10,35 +10,45 @@ use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
 
 /**
  * @property int $id
- * @property ?string $translatable_type
- * @property ?int $translatable_id
- * @property ?string $field_name
+ * @property string|null $translatable_type
+ * @property int|null $translatable_id
+ * @property string|null $field_name
  * @property string $source_locale
  * @property string $target_locale
  * @property string $source_content
- * @property string $translated_content
+ * @property string|null $translated_content
  * @property int $chunks_count
- * @property ?array $metadata
+ * @property array<string, mixed>|null $metadata
  * @property TranslationStatus $status
- * @property ?string $error_message
+ * @property string|null $error_message
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
  * @method static Builder<static>|TranslationResult newModelQuery()
  * @method static Builder<static>|TranslationResult newQuery()
  * @method static Builder<static>|TranslationResult query()
- *
- * @mixin Eloquent
  */
 class TranslationResult extends Model
 {
-    /** {@inheritDoc} */
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
     protected $table = 'translation_results';
 
-    /** {@inheritDoc} */
+    /**
+     * The attributes that aren't mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
-    /** {@inheritDoc} */
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
         'metadata' => 'array',
         'chunks_count' => 'integer',
@@ -47,6 +57,8 @@ class TranslationResult extends Model
 
     /**
      * Get the owning translatable model.
+     *
+     * @return MorphTo<Model, $this>
      */
     public function translatable(): MorphTo
     {
@@ -54,7 +66,7 @@ class TranslationResult extends Model
     }
 
     /**
-     * Check if translation is completed.
+     * Determine if the translation has completed.
      */
     public function isCompleted(): bool
     {
@@ -62,7 +74,7 @@ class TranslationResult extends Model
     }
 
     /**
-     * Check if translation failed.
+     * Determine if the translation has failed.
      *
      * @codeCoverageIgnore
      */
@@ -72,7 +84,7 @@ class TranslationResult extends Model
     }
 
     /**
-     * Check if translation is still pending.
+     * Determine if the translation is still pending.
      *
      * @codeCoverageIgnore
      */
@@ -82,7 +94,7 @@ class TranslationResult extends Model
     }
 
     /**
-     * Check if translation is currently processing.
+     * Determine if the translation is currently processing.
      *
      * @codeCoverageIgnore
      */
@@ -92,7 +104,7 @@ class TranslationResult extends Model
     }
 
     /**
-     * Mark translation as processing.
+     * Mark the translation as processing.
      */
     public function markAsProcessing(): void
     {
@@ -100,7 +112,9 @@ class TranslationResult extends Model
     }
 
     /**
-     * Mark translation as completed.
+     * Mark the translation as completed and persist the translated content.
+     *
+     * @param array<string, mixed> $metadata
      */
     public function markAsCompleted(string $content, array $metadata = []): void
     {
@@ -112,7 +126,7 @@ class TranslationResult extends Model
     }
 
     /**
-     * Mark translation as failed.
+     * Mark the translation as failed and persist the error message.
      */
     public function markAsFailed(string $errorMessage): void
     {

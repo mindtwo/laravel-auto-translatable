@@ -6,6 +6,7 @@ use League\CommonMark\Extension\CommonMark\Node\Block\FencedCode;
 use League\CommonMark\Extension\CommonMark\Node\Block\Heading;
 use League\CommonMark\Extension\CommonMark\Node\Block\IndentedCode;
 use League\CommonMark\Extension\Table\Table;
+use League\CommonMark\Node\Block\AbstractBlock;
 use League\CommonMark\Node\Block\Document;
 use League\CommonMark\Node\Node;
 use Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer;
@@ -15,18 +16,25 @@ use Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer;
  */
 class Parser
 {
-    /** @var array<Node> */
+    /**
+     * The CommonMark nodes that have already been consumed.
+     *
+     * @var array<int, Node>
+     */
     private array $processed = [];
 
+    /**
+     * Create a new parser instance.
+     */
     public function __construct(
         private readonly Tokenizer $tokenizer,
         private readonly string $markdown,
     ) {}
 
     /**
-     * Parse the document into a hierarchical tree of nodes.
+     * Parse the given document into a hierarchical tree of nodes.
      *
-     * @return array<MarkdownNode>
+     * @return array<int, MarkdownNode>
      */
     public function parse(Document $document): array
     {
@@ -34,19 +42,30 @@ class Parser
         $nodes = [];
 
         foreach ($document->children() as $child) {
+            if (! $child instanceof Node) {
+                continue;
+            }
+
+            /**
+             * PHPStan narrows $this->processed to the empty literal after the
+             * reset above and cannot see that parseNode() appends to it.
+             *
+             * @phpstan-ignore function.impossibleType
+             */
             if (in_array($child, $this->processed, true)) {
                 continue;
             }
 
-            if (($node = $this->parseNode($child)) instanceof MarkdownNode) {
-                $nodes[] = $node;
-            }
+            $nodes[] = $this->parseNode($child);
         }
 
         return $nodes;
     }
 
-    private function parseNode(Node $node): ?MarkdownNode
+    /**
+     * Dispatch a CommonMark node to the appropriate parser method.
+     */
+    private function parseNode(Node $node): MarkdownNode
     {
         $this->processed[] = $node;
 
@@ -59,24 +78,26 @@ class Parser
         };
     }
 
+    /**
+     * Parse a heading and gather every sibling that belongs under it.
+     */
     private function parseHeading(Heading $node): MarkdownNode
     {
         $raw = $this->extractRaw($node);
         $tokenCount = $this->tokenizer->count($raw);
         $level = $node->getLevel();
 
-        // Collect all children under this heading
         $children = [];
         $nextNode = $node->next();
 
         while ($nextNode instanceof Node) {
-            // Stop at same or higher level heading
+            // Stop at the next heading of the same or higher level.
             if ($nextNode instanceof Heading && $nextNode->getLevel() <= $level) {
                 break;
             }
 
-            if (! in_array($nextNode, $this->processed, true) && $parsed = $this->parseNode($nextNode)) {
-                $children[] = $parsed;
+            if (! in_array($nextNode, $this->processed, true)) {
+                $children[] = $this->parseNode($nextNode);
             }
 
             $nextNode = $nextNode->next();
@@ -85,6 +106,9 @@ class Parser
         return new MarkdownNode($tokenCount, $raw, $children);
     }
 
+    /**
+     * Parse a fenced code block.
+     */
     private function parseFencedCode(FencedCode $node): MarkdownNode
     {
         $raw = $this->extractRaw($node);
@@ -93,6 +117,9 @@ class Parser
         return new MarkdownNode($tokenCount, $raw);
     }
 
+    /**
+     * Parse an indented code block.
+     */
     private function parseIndentedCode(IndentedCode $node): MarkdownNode
     {
         $raw = $this->extractRaw($node);
@@ -101,6 +128,9 @@ class Parser
         return new MarkdownNode($tokenCount, $raw);
     }
 
+    /**
+     * Parse a table block.
+     */
     private function parseTable(Table $node): MarkdownNode
     {
         $raw = $this->extractRaw($node);
@@ -109,6 +139,9 @@ class Parser
         return new MarkdownNode($tokenCount, $raw);
     }
 
+    /**
+     * Parse any other node as a generic text block.
+     */
     private function parseText(Node $node): MarkdownNode
     {
         $raw = $this->extractRaw($node);
@@ -118,10 +151,14 @@ class Parser
     }
 
     /**
-     * Extract raw markdown for a node from the original source.
+     * Extract the original markdown source for the given node.
      */
     private function extractRaw(Node $node): string
     {
+        if (! $node instanceof AbstractBlock) {
+            return '';
+        }
+
         $start = $node->getStartLine();
         $end = $node->getEndLine();
 

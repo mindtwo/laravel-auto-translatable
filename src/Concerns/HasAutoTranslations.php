@@ -18,22 +18,22 @@ use RuntimeException;
 trait HasAutoTranslations
 {
     /**
-     * Define which fields are auto-translatable.
+     * Get the model attributes that should be auto-translated.
      *
-     * @return array<string>
+     * @return array<int, string>
      */
     abstract public function autoTranslatableFields(): array;
 
     /**
-     * Define chunking strategies for specific fields.
+     * Get the chunking strategy that should be used per attribute.
      *
-     * Override this method to specify how different fields should be chunked:
-     * - 'markdown': Markdown-aware chunking (preserves structure)
-     * - 'plain': Plain text chunking (sentence-based)
-     * - 'none': No chunking (single piece)
-     * - 'auto': Auto-detect (default)
+     * Supported strategies:
+     *   - "markdown": markdown aware chunking that preserves structure.
+     *   - "plain":    plain text chunking that respects sentence boundaries.
+     *   - "none":     pass the value through without chunking.
+     *   - "auto":     detect the strategy from the content (default).
      *
-     * @return array<string, string> Field name => strategy name
+     * @return array<string, string> attribute => strategy
      */
     public function chunkingStrategies(): array
     {
@@ -41,6 +41,8 @@ trait HasAutoTranslations
     }
 
     /**
+     * Get all translation results that belong to this model.
+     *
      * @return MorphMany<TranslationResult, $this>
      */
     public function translationResults(): MorphMany
@@ -49,7 +51,7 @@ trait HasAutoTranslations
     }
 
     /**
-     * Get translation result for specific field/locale.
+     * Get the latest completed translation result for the given attribute and locale.
      */
     public function getTranslationResult(string $field, string $locale): ?TranslationResult
     {
@@ -62,9 +64,9 @@ trait HasAutoTranslations
     }
 
     /**
-     * Automatically translate all translatable fields to all available locales.
+     * Translate every translatable attribute into every configured locale.
      *
-     * @param array<string> $options
+     * @param array<string, mixed> $options
      */
     public function autoTranslate(array $options = []): void
     {
@@ -76,17 +78,15 @@ trait HasAutoTranslations
         $sourceLocale = $adapter->getSourceLocale($this);
         $availableLocales = $adapter->getAvailableLocales($this);
 
-        // Filter out the source locale (don't translate to itself)
+        // The source locale never needs to be translated into itself.
         $targetLocales = array_filter($availableLocales, fn (string $locale) => $locale !== $sourceLocale);
 
-        // Get chunking strategies for fields
         $chunkingStrategies = $this->chunkingStrategies();
 
-        // Translate to each target locale
         foreach ($targetLocales as $targetLocale) {
             $fieldsToTranslate = [];
 
-            // Collect fields that have content in the source locale
+            // Only translate attributes that have content in the source locale.
             foreach ($this->autoTranslatableFields() as $field) {
                 $sourceContent = $adapter->getFieldValue($this, $field, $sourceLocale);
 
@@ -95,17 +95,14 @@ trait HasAutoTranslations
                 }
             }
 
-            // Skip if no fields to translate
             if (empty($fieldsToTranslate)) {
                 continue;
             }
 
-            // Merge chunking strategies into options
             $translationOptions = array_merge($options, [
                 'chunking_strategies' => $chunkingStrategies,
             ]);
 
-            // Dispatch translation job
             if (config('auto-translatable.queue_translations', true)) {
                 TranslateContent::dispatch(
                     $this,
@@ -126,6 +123,9 @@ trait HasAutoTranslations
         }
     }
 
+    /**
+     * Determine if a translation for the given attribute and locale is pending or processing.
+     */
     public function hasPendingTranslationResult(string $field, string $locale): bool
     {
         return $this->translationResults()

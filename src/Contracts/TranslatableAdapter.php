@@ -9,32 +9,31 @@ use Mindtwo\AutoTranslatable\Models\TranslationResult;
 interface TranslatableAdapter
 {
     /**
-     * Check if this adapter can handle the given model.
+     * Determine if this adapter can handle the given model.
      */
     public function supports(Model $model): bool;
 
     /**
-     * Get the configured locales for translation.
+     * Get the locales that translations should be generated for.
      *
-     * @return array<string>
+     * @return array<int, string>
      */
     public function getAvailableLocales(Model $model): array;
 
     /**
-     * Get the source locale for the model's content
-     * This determines which locale the current content is in.
+     * Get the source locale that the model's content is written in.
      */
     public function getSourceLocale(Model $model): string;
 
     /**
-     * Get the value of a field in a specific locale.
+     * Get the value of the given attribute in the given locale.
      */
     public function getFieldValue(Model $model, string $field, string $locale): ?string;
 
     /**
-     * Apply translation results to the model.
+     * Persist the completed translation results onto the model.
      *
-     * @param Collection<TranslationResult> $results
+     * @param Collection<int, TranslationResult> $results
      */
     public function applyTranslations(Model $model, Collection $results): void;
 }

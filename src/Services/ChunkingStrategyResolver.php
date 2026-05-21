@@ -12,10 +12,18 @@ use Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer;
 
 class ChunkingStrategyResolver
 {
+    /** The markdown chunking strategy. */
     private readonly MarkdownChunkingStrategy $markdownStrategy;
+
+    /** The plain text chunking strategy. */
     private readonly PlainTextChunkingStrategy $plainTextStrategy;
+
+    /** The pass-through chunking strategy. */
     private readonly NoChunkingStrategy $noChunkingStrategy;
 
+    /**
+     * Create a new chunking strategy resolver.
+     */
     public function __construct(MarkdownChunker $markdownChunker, Tokenizer $tokenizer)
     {
         $this->markdownStrategy = new MarkdownChunkingStrategy($markdownChunker);
@@ -24,14 +32,14 @@ class ChunkingStrategyResolver
     }
 
     /**
-     * Resolve the appropriate chunking strategy.
+     * Resolve the chunking strategy for the given content.
      *
-     * @param string $content The content to chunk
-     * @param string|null $strategyName Explicit strategy name ('markdown', 'plain', 'none', 'auto')
+     * Pass an explicit strategy name ("markdown", "plain", "none") to bypass detection.
+     * The default "auto" picks markdown when the content contains markdown syntax and
+     * falls back to plain text otherwise.
      */
     public function resolve(string $content, ?string $strategyName = null): ChunkingStrategy
     {
-        // Handle explicit strategy names
         if ($strategyName !== null && $strategyName !== 'auto') {
             return match ($strategyName) {
                 'markdown' => $this->markdownStrategy,
@@ -41,12 +49,10 @@ class ChunkingStrategyResolver
             };
         }
 
-        // Auto-detect: try each strategy in order
         if ($this->markdownStrategy->canHandle($content)) {
             return $this->markdownStrategy;
         }
 
-        // Plain text is the fallback (always returns true)
         return $this->plainTextStrategy;
     }
 }

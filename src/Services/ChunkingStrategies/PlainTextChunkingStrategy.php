@@ -7,12 +7,20 @@ use Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer;
 
 class PlainTextChunkingStrategy implements ChunkingStrategy
 {
+    /**
+     * Create a new plain text chunking strategy.
+     */
     public function __construct(
         private readonly Tokenizer $tokenizer,
     ) {}
 
     /**
-     * {@inheritDoc}
+     * Chunk plain text into pieces that respect natural language boundaries.
+     *
+     * The strategy walks a hierarchy of progressively finer boundaries until
+     * every chunk fits within the token budget: paragraphs, sentences, words.
+     *
+     * @return array<int, string>
      */
     public function chunk(string $content, int $maxTokens): array
     {
@@ -20,26 +28,25 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
             return [$content];
         }
 
-        // Try splitting at paragraph boundaries (line breaks)
         $chunks = $this->chunkByParagraphs($content, $maxTokens);
 
         if ($chunks !== null) {
             return $chunks;
         }
 
-        // Paragraphs too large - try sentences
         $chunks = $this->chunkBySentences($content, $maxTokens);
 
         if ($chunks !== null) {
             return $chunks;
         }
 
-        // Sentences too large - fall back to word boundaries
         return $this->chunkByWords($content, $maxTokens);
     }
 
     /**
-     * {@inheritDoc}
+     * Determine if this strategy can handle the given content.
+     *
+     * The plain text strategy is the universal fallback and accepts any input.
      */
     public function canHandle(string $content): bool
     {
@@ -47,7 +54,7 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * {@inheritDoc}
+     * Get the strategy identifier.
      */
     public function getName(): string
     {
@@ -55,7 +62,9 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * Chunk by paragraph boundaries (line breaks).
+     * Chunk the content at paragraph boundaries.
+     *
+     * @return array<int, string>|null
      */
     private function chunkByParagraphs(string $content, int $maxTokens): ?array
     {
@@ -63,7 +72,9 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * Chunk by sentence boundaries.
+     * Chunk the content at sentence boundaries.
+     *
+     * @return array<int, string>|null
      */
     private function chunkBySentences(string $content, int $maxTokens): ?array
     {
@@ -71,7 +82,9 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * Chunk by word boundaries (last resort).
+     * Chunk the content at word boundaries as a last resort.
+     *
+     * @return array<int, string>
      */
     private function chunkByWords(string $content, int $maxTokens): array
     {
@@ -79,7 +92,12 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
     }
 
     /**
-     * Generic chunking method that splits on a pattern and preserves separators.
+     * Split the content on the given pattern and pack the parts into chunks.
+     *
+     * Returns null when the content cannot be split without exceeding the
+     * budget unless $allowOversized is true.
+     *
+     * @return array<int, string>|null
      */
     private function chunkByPattern(string $content, int $maxTokens, string $pattern, bool $allowOversized): ?array
     {
@@ -95,17 +113,15 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
 
         for ($i = 0; $i < count($parts); ++$i) {
             $part = $parts[$i];
-            $isText = $i % 2 === 0; // Even indices are text, odd are separators
+            $isText = $i % 2 === 0; // even indices are text, odd indices are separators
 
             if ($isText) {
                 $partTokens = $this->tokenizer->count($part);
 
-                // Check if this text block is too large on its own
                 if ($partTokens > $maxTokens && ! $allowOversized) {
                     return null;
                 }
 
-                // Try to fit in current chunk
                 if ($currentTokens + $partTokens <= $maxTokens && ! empty($currentChunk)) {
                     $currentChunk[] = $part;
                     $currentTokens += $partTokens;
@@ -114,12 +130,11 @@ class PlainTextChunkingStrategy implements ChunkingStrategy
                         $chunks[] = implode('', $currentChunk);
                     }
 
-                    // Start new chunk
                     $currentChunk = [$part];
                     $currentTokens = $partTokens;
                 }
             } else {
-                // It's a separator - add it to current chunk (preserves original formatting)
+                // Preserve the original separator so the joined output is byte-identical.
                 $currentChunk[] = $part;
             }
         }

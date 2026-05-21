@@ -5,28 +5,31 @@ namespace Mindtwo\AutoTranslatable\Services\Markdown\Chunking;
 use Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer;
 
 /**
- * Hierarchical greedy packing chunker.
+ * Hierarchical greedy packing chunker for parsed markdown trees.
  *
- * Strategy:
- * 1. Try to fit entire content in one chunk
- * 2. If too large, split at heading boundaries
- * 3. Greedily pack sibling headings that fit together
- * 4. Recursively process headings that don't fit
- * 5. Split large content blocks (text, code, tables) at safe boundaries
+ * The algorithm walks the tree in this order:
+ *   1. Return the entire document as one chunk when it fits.
+ *   2. Split at heading boundaries when it does not.
+ *   3. Greedily pack sibling headings that fit together.
+ *   4. Recurse into headings that exceed the budget.
+ *   5. As a last resort, split large leaves at safe boundaries.
  */
 class Chunker
 {
+    /**
+     * Create a new chunker for the given tokenizer and token budget.
+     */
     public function __construct(
         private readonly Tokenizer $tokenizer,
         private readonly int $maxTokens,
     ) {}
 
     /**
-     * Chunk a list of markdown nodes into string chunks.
+     * Chunk the given markdown nodes into rendered string chunks.
      *
-     * @param array<MarkdownNode> $nodes
+     * @param array<int, MarkdownNode> $nodes
      *
-     * @return array<string>
+     * @return array<int, string>
      */
     public function chunk(array $nodes): array
     {
@@ -36,23 +39,21 @@ class Chunker
     }
 
     /**
-     * Process nodes and return chunks as arrays of markdown strings.
+     * Process the top-level nodes and return chunks as arrays of markdown pieces.
      *
-     * @param array<MarkdownNode> $nodes
+     * @param array<int, MarkdownNode> $nodes
      *
-     * @return array<array<string>>
+     * @return array<int, array<int, string>>
      */
     private function processNodes(array $nodes): array
     {
-        // Separate headings from preamble content
         [$preamble, $headings] = $this->separateHeadings($nodes);
 
-        // Try to fit everything in one chunk
+        // First try to fit the entire document in a single chunk.
         if (! empty($preamble) && ! empty($headings)) {
             $totalTokens = $this->countPieces($preamble) + $this->countHeadings($headings);
 
             if ($totalTokens <= $this->maxTokens) {
-                // Everything fits!
                 $allPieces = [...$preamble];
 
                 foreach ($headings as $heading) {
@@ -63,31 +64,28 @@ class Chunker
             }
         }
 
-        // Can't fit everything - process separately
         $chunks = [];
 
-        // Add preamble chunks
+        // Emit the preamble first, splitting it further if it exceeds the budget.
         if (! empty($preamble)) {
             $preambleTokens = $this->countPieces($preamble);
 
             if ($preambleTokens > $this->maxTokens) {
-                // Preamble too large - split it
                 $chunks = [...$chunks, ...$this->splitPieces($preamble)];
             } else {
                 $chunks[] = $preamble;
             }
         }
 
-        // Greedily pack headings
         return [...$chunks, ...$this->packHeadings($headings)];
     }
 
     /**
-     * Greedily pack sibling headings that fit together.
+     * Greedily pack sibling headings into chunks that fit the token budget.
      *
-     * @param array<MarkdownNode> $headings
+     * @param array<int, MarkdownNode> $headings
      *
-     * @return array<array<string>>
+     * @return array<int, array<int, string>>
      */
     private function packHeadings(array $headings): array
     {
@@ -98,24 +96,19 @@ class Chunker
         foreach ($headings as $heading) {
             $headingTokens = $heading->totalTokens();
 
-            // Can we fit this heading with current accumulation?
             if ($currentTokens + $headingTokens <= $this->maxTokens && ! empty($accumulated)) {
-                // Yes - add it
                 $accumulated = [...$accumulated, ...$this->flattenHeading($heading)];
                 $currentTokens += $headingTokens;
             } else {
-                // Emit accumulated if any
                 if (! empty($accumulated)) {
                     $chunks[] = $accumulated;
                 }
 
-                // Check if this heading fits on its own
                 if ($headingTokens <= $this->maxTokens) {
-                    // Start new accumulation
                     $accumulated = $this->flattenHeading($heading);
                     $currentTokens = $headingTokens;
                 } else {
-                    // Too large - process recursively
+                    // The heading itself is oversized; descend and split recursively.
                     $chunks = [...$chunks, ...$this->processHeading($heading)];
                     $accumulated = [];
                     $currentTokens = 0;
@@ -123,7 +116,6 @@ class Chunker
             }
         }
 
-        // Emit remaining
         if (! empty($accumulated)) {
             $chunks[] = $accumulated;
         }
@@ -132,9 +124,9 @@ class Chunker
     }
 
     /**
-     * Process a single heading that exceeds maxTokens.
+     * Process a single heading whose subtree exceeds the token budget.
      *
-     * @return array<array<string>>
+     * @return array<int, array<int, string>>
      */
     private function processHeading(MarkdownNode $heading): array
     {
@@ -144,17 +136,16 @@ class Chunker
         $directTokens = $this->countPieces($directContent);
         $headingTokens = $heading->tokenCount;
 
-        // Base case: no child headings
+        // Base case: a heading with no nested headings.
         if (empty($childHeadings)) {
             if ($headingTokens + $directTokens <= $this->maxTokens) {
                 return [[...$headingPiece, ...$directContent]];
             }
 
-            // Direct content too large - split it
             return $this->splitPieces([...$headingPiece, ...$directContent]);
         }
 
-        // Try to fit everything (heading + direct + all children)
+        // Attempt to fit the heading together with every descendant.
         $totalTokens = $heading->totalTokens();
 
         if ($totalTokens <= $this->maxTokens) {
@@ -167,7 +158,7 @@ class Chunker
             return [$allPieces];
         }
 
-        // Can't fit - greedy pack children
+        // Otherwise greedily pack the children alongside the heading body.
         $chunks = [];
         $accumulated = [...$headingPiece, ...$directContent];
         $currentTokens = $headingTokens + $directTokens;
@@ -176,34 +167,29 @@ class Chunker
             $childTokens = $child->totalTokens();
 
             if ($currentTokens + $childTokens <= $this->maxTokens) {
-                // Fits - add it
                 $accumulated = [...$accumulated, ...$this->flattenHeading($child)];
                 $currentTokens += $childTokens;
             } else {
-                // Doesn't fit - emit accumulated and pack remaining children
-                if (! empty($accumulated)) {
-                    $chunks[] = $accumulated;
-                }
+                // $accumulated is non-empty here because it was seeded with the
+                // heading and its direct content above.
+                $chunks[] = $accumulated;
 
-                // Pack all remaining children (including current one) together
+                // Defer the rest of the children to the sibling packer.
                 $remainingChildren = array_slice($childHeadings, $i);
 
                 return [...$chunks, ...$this->packHeadings($remainingChildren)];
             }
         }
 
-        // Emit remaining
-        if (! empty($accumulated)) {
-            $chunks[] = $accumulated;
-        }
+        $chunks[] = $accumulated;
 
         return $chunks;
     }
 
     /**
-     * Flatten a heading and all descendants into markdown pieces.
+     * Flatten a heading and every descendant into a flat list of markdown pieces.
      *
-     * @return array<string>
+     * @return array<int, string>
      */
     private function flattenHeading(MarkdownNode $heading): array
     {
@@ -211,10 +197,8 @@ class Chunker
 
         foreach ($heading->children as $child) {
             if (! empty($child->children)) {
-                // Child is a heading - recurse
                 $pieces = [...$pieces, ...$this->flattenHeading($child)];
             } else {
-                // Child is a leaf node - add raw content
                 $pieces[] = $child->raw;
             }
         }
@@ -223,11 +207,11 @@ class Chunker
     }
 
     /**
-     * Split pieces that exceed maxTokens into smaller chunks.
+     * Split a list of pieces into chunks that respect the token budget.
      *
-     * @param array<string> $pieces
+     * @param array<int, string> $pieces
      *
-     * @return array<array<string>>
+     * @return array<int, array<int, string>>
      */
     private function splitPieces(array $pieces): array
     {
@@ -238,19 +222,15 @@ class Chunker
         foreach ($pieces as $piece) {
             $pieceTokens = $this->tokenizer->count($piece);
 
-            // Try to fit in current chunk
             if ($currentTokens + $pieceTokens <= $this->maxTokens && ! empty($accumulated)) {
                 $accumulated[] = $piece;
                 $currentTokens += $pieceTokens;
             } else {
-                // Emit current chunk
                 if (! empty($accumulated)) {
                     $chunks[] = $accumulated;
                 }
 
-                // Check if piece itself is too large
                 if ($pieceTokens > $this->maxTokens) {
-                    // Split large text at line boundaries and accumulate
                     $subChunks = $this->splitLargeText($piece);
                     $chunks = [...$chunks, ...$subChunks];
                     $accumulated = [];
@@ -270,21 +250,19 @@ class Chunker
     }
 
     /**
-     * Split large text content at line boundaries, accumulating into max-sized chunks.
+     * Split an oversized piece of text at line boundaries.
      *
-     * @return array<array<string>>
+     * @return array<int, array<int, string>>
      */
     private function splitLargeText(string $text): array
     {
-        // Try splitting at line breaks first
         $lines = explode("\n", $text);
 
-        // If single line, return as-is (can't split further)
+        // A single-line block cannot be split any further.
         if (count($lines) === 1) {
             return [[$text]];
         }
 
-        // Accumulate lines into chunks that fit under maxTokens
         $chunks = [];
         $accumulated = [];
         $currentTokens = 0;
@@ -302,18 +280,15 @@ class Chunker
                 $accumulated[] = $line;
                 $currentTokens += $lineTokens;
             } else {
-                // Emit current chunk
                 if (! empty($accumulated)) {
                     $chunks[] = $accumulated;
                 }
 
-                // Start new chunk with this line
                 $accumulated = [$line];
                 $currentTokens = $lineTokens;
             }
         }
 
-        // Emit remaining
         if (! empty($accumulated)) {
             $chunks[] = $accumulated;
         }
@@ -322,11 +297,11 @@ class Chunker
     }
 
     /**
-     * Separate headings from other content.
+     * Separate heading nodes from leaf content nodes.
      *
-     * @param array<MarkdownNode> $nodes
+     * @param array<int, MarkdownNode> $nodes
      *
-     * @return array{array<string>, array<MarkdownNode>}
+     * @return array{0: array<int, string>, 1: array<int, MarkdownNode>}
      */
     private function separateHeadings(array $nodes): array
     {
@@ -335,10 +310,8 @@ class Chunker
 
         foreach ($nodes as $node) {
             if (! empty($node->children)) {
-                // Node has children - it's a heading
                 $headings[] = $node;
             } else {
-                // Leaf node - add to content
                 $content[] = $node->raw;
             }
         }
@@ -347,7 +320,9 @@ class Chunker
     }
 
     /**
-     * @param array<MarkdownNode> $headings
+     * Sum the total tokens across the given headings.
+     *
+     * @param array<int, MarkdownNode> $headings
      */
     private function countHeadings(array $headings): int
     {
@@ -361,7 +336,9 @@ class Chunker
     }
 
     /**
-     * @param array<string> $pieces
+     * Sum the tokens across the given markdown pieces.
+     *
+     * @param array<int, string> $pieces
      */
     private function countPieces(array $pieces): int
     {
@@ -375,7 +352,9 @@ class Chunker
     }
 
     /**
-     * @param array<string> $pieces
+     * Render a chunk by joining its pieces with paragraph spacing.
+     *
+     * @param array<int, string> $pieces
      */
     private function renderPieces(array $pieces): string
     {

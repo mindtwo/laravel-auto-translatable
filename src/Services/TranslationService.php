@@ -11,16 +11,22 @@ use Mindtwo\AutoTranslatable\Events\ModelTranslationCompleted;
 use Mindtwo\AutoTranslatable\Events\TranslationCompleted;
 use Mindtwo\AutoTranslatable\Events\TranslationFailed;
 use Mindtwo\AutoTranslatable\Models\TranslationResult;
+use Mindtwo\AutoTranslatable\Support\Config;
 
 class TranslationService
 {
+    /**
+     * Create a new translation service instance.
+     */
     public function __construct(
         protected ChunkingStrategyResolver $strategyResolver,
         protected TranslationProvider $provider,
     ) {}
 
     /**
-     * Translate a string directly.
+     * Translate a single string into the target locale.
+     *
+     * @param array<string, mixed> $options
      *
      * @throws Exception
      */
@@ -47,8 +53,8 @@ class TranslationService
             );
 
             $result->markAsCompleted($translatedContent, [
-                'provider' => config('auto-translatable.provider'),
-                'model' => config('auto-translatable.model'),
+                'provider' => Config::string('auto-translatable.provider'),
+                'model' => Config::string('auto-translatable.model'),
             ]);
         } catch (Exception $e) {
             $result->markAsFailed($e->getMessage());
@@ -60,11 +66,12 @@ class TranslationService
     }
 
     /**
-     * Translate multiple fields on a model.
+     * Translate the given attributes for the model.
      *
-     * @param array<string, string> $fields
+     * @param array<string, string> $fields attribute => source content
+     * @param array<string, mixed> $options
      *
-     * @return Collection<TranslationResult>
+     * @return Collection<int, TranslationResult>
      */
     public function translateModel(
         Model $model,
@@ -73,9 +80,15 @@ class TranslationService
         string $targetLocale,
         array $options = [],
     ): Collection {
+        /** @var Collection<int, TranslationResult> $results */
         $results = collect();
 
         foreach ($fields as $field => $content) {
+            // The model is expected to use HasAutoTranslations; the trait
+            // method is resolved dynamically and cannot be expressed in the
+            // type signature without coupling the service to a concrete model.
+            assert(method_exists($model, 'hasPendingTranslationResult'));
+
             if ($model->hasPendingTranslationResult($field, $targetLocale)) {
                 continue;
             }
@@ -91,10 +104,11 @@ class TranslationService
             ]);
 
             try {
-                // Get field-specific chunking strategy
                 $fieldOptions = $options;
 
-                if (isset($options['chunking_strategies'][$field])) {
+                if (is_array(
+                    $options['chunking_strategies'] ?? null,
+                ) && isset($options['chunking_strategies'][$field])) {
                     $fieldOptions['chunking_strategy'] = $options['chunking_strategies'][$field];
                 }
 
@@ -107,7 +121,9 @@ class TranslationService
                 );
 
                 $result->markAsCompleted($translatedContent, [
-                    'provider' => config('auto-translatable.provider').':'.config('auto-translatable.model'),
+                    'provider' => Config::string('auto-translatable.provider').':'.Config::string(
+                        'auto-translatable.model',
+                    ),
                     'model' => $model->getMorphClass(),
                     'model_id' => $model->getKey(),
                 ]);
@@ -122,7 +138,6 @@ class TranslationService
             }
         }
 
-        // Fire model translation completed event if we have results
         if ($results->isNotEmpty()) {
             event(new ModelTranslationCompleted($model, $results, $fields));
         }
@@ -131,7 +146,9 @@ class TranslationService
     }
 
     /**
-     * Perform the actual translation with chunking and post-processing.
+     * Run the translation pipeline: chunk the content, translate each chunk, then post-process the result.
+     *
+     * @param array<string, mixed> $options
      */
     public function performTranslation(
         string $content,
@@ -142,16 +159,17 @@ class TranslationService
     ): string {
         $result->markAsProcessing();
 
-        $chunkSize = $options['chunk_size'] ?? config('auto-translatable.chunk_size', 80000);
+        $chunkSize = is_numeric($options['chunk_size'] ?? null)
+            ? (int) $options['chunk_size']
+            : Config::int('auto-translatable.chunk_size', 80000);
 
-        // Resolve chunking strategy (explicit or auto-detect)
+        // Resolve the chunking strategy. An explicit name overrides auto-detection.
         $strategyName = $options['chunking_strategy'] ?? 'auto';
-        $strategy = $this->strategyResolver->resolve($content, $strategyName);
+        $strategy = $this->strategyResolver->resolve($content, is_string($strategyName) ? $strategyName : null);
 
         $chunks = $strategy->chunk($content, $chunkSize);
         $result->update(['chunks_count' => count($chunks)]);
 
-        // Translate each chunk
         $translatedChunks = [];
 
         foreach ($chunks as $chunk) {
@@ -160,7 +178,6 @@ class TranslationService
             $translatedChunks[] = $translated;
         }
 
-        // Combine chunks and apply post-processing
         $translatedContent = implode("\n\n", $translatedChunks);
         $postProcessors = $this->getPostProcessors($options);
 
@@ -172,23 +189,29 @@ class TranslationService
     }
 
     /**
-     * Get post-processors to apply.
+     * Get the post-processors that should run for this translation.
      *
-     * @return array<PostProcessor>
+     * @param array<string, mixed> $options
+     *
+     * @return array<int, PostProcessor>
      */
     protected function getPostProcessors(array $options): array
     {
         $processors = [];
 
-        // Add link replacer if enabled
-        if ($linkReplacer = app('auto-translatable.link-replacer')) {
+        $linkReplacer = app('auto-translatable.link-replacer');
+
+        if ($linkReplacer instanceof PostProcessor) {
             $processors[] = $linkReplacer;
         }
 
-        // Add any custom processors from options
-        foreach ($options['post_processors'] ?? [] as $processor) {
-            if ($processor instanceof PostProcessor) {
-                $processors[] = $processor;
+        $custom = $options['post_processors'] ?? [];
+
+        if (is_array($custom)) {
+            foreach ($custom as $processor) {
+                if ($processor instanceof PostProcessor) {
+                    $processors[] = $processor;
+                }
             }
         }
 

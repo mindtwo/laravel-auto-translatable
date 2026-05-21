@@ -3,38 +3,29 @@
 namespace Mindtwo\AutoTranslatable\Contracts;
 
 /**
- * Strategy for chunking content for translation.
+ * Strategy for chunking content into LLM-sized pieces.
  *
- * Different content types (markdown, HTML, plain text) require different
- * chunking approaches to maintain semantic boundaries and context.
+ * Different content types (markdown, HTML, plain text) need different
+ * chunking approaches in order to maintain semantic boundaries and context.
  */
 interface ChunkingStrategy
 {
     /**
-     * Chunk content into smaller pieces suitable for translation.
+     * Chunk the content into pieces that fit within the token budget.
      *
-     * @param string $content The content to chunk
-     * @param int $maxTokens Maximum tokens per chunk
-     *
-     * @return array<string> Array of content chunks
+     * @return array<int, string>
      */
     public function chunk(string $content, int $maxTokens): array;
 
     /**
-     * Check if this strategy can handle the given content.
+     * Determine if this strategy can handle the given content.
      *
-     * Used for auto-detection of content type.
-     *
-     * @param string $content The content to check
-     *
-     * @return bool True if this strategy can handle the content
+     * Used by the resolver to auto-detect the right strategy for a payload.
      */
     public function canHandle(string $content): bool;
 
     /**
-     * Get the name/identifier for this strategy.
-     *
-     * @return string Strategy name (e.g., 'markdown', 'plain', 'html')
+     * Get the strategy identifier (e.g. "markdown", "plain", "none").
      */
     public function getName(): string;
 }

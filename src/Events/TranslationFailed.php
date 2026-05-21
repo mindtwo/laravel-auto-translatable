@@ -7,11 +7,17 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Mindtwo\AutoTranslatable\Models\TranslationResult;
 
+/**
+ * Fired when a single translation result has failed.
+ */
 class TranslationFailed
 {
     use Dispatchable;
     use SerializesModels;
 
+    /**
+     * Create a new event instance.
+     */
     public function __construct(
         public TranslationResult $result,
         public string $error,

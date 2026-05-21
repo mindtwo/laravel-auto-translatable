@@ -3,12 +3,15 @@
 namespace Mindtwo\AutoTranslatable\Services;
 
 use LaravelLang\NativeLocaleNames\LocaleNames;
+use Mindtwo\AutoTranslatable\Support\Config;
 use Prism\Prism\Facades\Prism;
 
 class TranslationProvider
 {
     /**
-     * Translate a single chunk using PRISM.
+     * Translate a single chunk through the configured PRISM provider.
+     *
+     * @param array<string, mixed> $options
      */
     public function translateChunk(
         string $content,
@@ -16,9 +19,9 @@ class TranslationProvider
         string $targetLocale,
         array $options,
     ): string {
-        $provider = config('auto-translatable.provider');
-        $model = config('auto-translatable.model');
-        $outputTokens = config('auto-translatable.output_tokens', 100000);
+        $provider = Config::string('auto-translatable.provider');
+        $model = Config::string('auto-translatable.model');
+        $outputTokens = Config::int('auto-translatable.output_tokens', 100000);
 
         $prompt = $this->buildPrompt($content, $sourceLocale, $targetLocale, $options);
         $strategy = $options['chunking_strategy'] ?? 'none';
@@ -37,6 +40,9 @@ class TranslationProvider
         return mb_trim($response->text);
     }
 
+    /**
+     * Build the system prompt for plain-text translation.
+     */
     protected function buildSystemPromptPlain(): string
     {
         return <<<'PROMPT'
@@ -54,7 +60,7 @@ class TranslationProvider
     }
 
     /**
-     * Build the system prompt for translation.
+     * Build the system prompt for markdown translation.
      */
     protected function buildSystemPromptMarkdown(): string
     {
@@ -76,7 +82,9 @@ class TranslationProvider
     }
 
     /**
-     * Build the translation prompt.
+     * Build the user prompt for the translation request.
+     *
+     * @param array<string, mixed> $options
      */
     protected function buildPrompt(
         string $content,
@@ -89,8 +97,10 @@ class TranslationProvider
 
         $prompt = '';
 
-        if (isset($options['prompt_additions']) && $options['prompt_additions']) {
-            $prompt .= "\n".$options['prompt_additions'];
+        if (isset($options['prompt_additions']) && is_scalar(
+            $options['prompt_additions'],
+        ) && $options['prompt_additions']) {
+            $prompt .= "\n".(string) $options['prompt_additions'];
         }
 
         $prompt .= ($options['chunking_strategy'] ?? 'none') === 'markdown'
@@ -101,10 +111,14 @@ class TranslationProvider
     }
 
     /**
-     * Get language name from locale code.
+     * Get the English language name for the given locale code.
      */
     protected function getLanguageName(string $locale): string
     {
-        return LocaleNames::get('en')[$locale] ?? ucfirst($locale);
+        $names = LocaleNames::get('en');
+
+        return isset($names[$locale]) && is_string($names[$locale])
+            ? $names[$locale]
+            : ucfirst($locale);
     }
 }
