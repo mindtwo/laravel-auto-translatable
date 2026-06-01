@@ -3,13 +3,11 @@
 namespace Mindtwo\AutoTranslatable\Services;
 
 use LaravelLang\NativeLocaleNames\LocaleNames;
-use Mindtwo\AutoTranslatable\Support\Config;
-use Prism\Prism\Facades\Prism;
 
 class TranslationProvider
 {
     /**
-     * Translate a single chunk through the configured PRISM provider.
+     * Translate a single chunk through the configured AI provider.
      *
      * @param array<string, mixed> $options
      */
@@ -19,23 +17,13 @@ class TranslationProvider
         string $targetLocale,
         array $options,
     ): string {
-        $provider = Config::string('auto-translatable.provider');
-        $model = Config::string('auto-translatable.model');
-        $outputTokens = Config::int('auto-translatable.output_tokens', 100000);
-
         $prompt = $this->buildPrompt($content, $sourceLocale, $targetLocale, $options);
         $strategy = $options['chunking_strategy'] ?? 'none';
         $systemPrompt = $strategy === 'markdown'
             ? $this->buildSystemPromptMarkdown()
             : $this->buildSystemPromptPlain();
 
-        $response = Prism::text()
-            ->withClientOptions(['timeout' => 500])
-            ->using($provider, $model)
-            ->withSystemPrompt($systemPrompt)
-            ->withPrompt($prompt)
-            ->withMaxTokens($outputTokens)
-            ->asText();
+        $response = (new TranslationAgent($systemPrompt))->prompt($prompt);
 
         return mb_trim($response->text);
     }

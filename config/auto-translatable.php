@@ -8,14 +8,23 @@ return [
     | AI Provider Configuration
     |--------------------------------------------------------------------------
     |
-    | Configure which AI provider and model to use via PRISM.
-    | Supported providers: anthropic, openai, etc. (any PRISM provider)
+    | Configure which AI provider and model to use via laravel/ai.
+    | Supported providers: anthropic, openai, gemini, etc. (any laravel/ai Lab)
+    |
+    | Credentials are configured in laravel/ai's own config/ai.php (e.g. via
+    | ANTHROPIC_API_KEY), not here.
+    |
+    | request_timeout: Seconds to wait for a single translation request before
+    |   timing out. Translating a full chunk can take a while, so this defaults
+    |   to a generous value.
     |
     */
 
     'provider' => env('AUTO_TRANSLATABLE_PROVIDER', 'anthropic'),
 
     'model' => env('AUTO_TRANSLATABLE_MODEL', 'claude-sonnet-4-5'),
+
+    'request_timeout' => env('AUTO_TRANSLATABLE_REQUEST_TIMEOUT', 500),
 
     /*
     |--------------------------------------------------------------------------

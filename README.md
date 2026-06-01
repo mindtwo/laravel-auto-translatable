@@ -41,7 +41,7 @@
 
 ## Features
 
-- **AI-Powered Translations** - Uses any PRISM-supported provider (Anthropic, OpenAI, Google, etc.)
+- **AI-Powered Translations** - Uses any [laravel/ai](https://github.com/laravel/ai)-supported provider (Anthropic, OpenAI, Gemini, etc.)
 - **Smart Content Chunking** - Intelligent chunking for long content:
   - **Markdown**: Respects document structure, never breaks mid-section
   - **Plain Text**: Chunks at paragraph, sentence, or word boundaries
@@ -68,6 +68,20 @@ php artisan vendor:publish --tag=auto-translatable-migrations
 php artisan migrate
 ```
 
+### AI Provider Credentials
+
+Translations are performed through [laravel/ai](https://github.com/laravel/ai).
+Configure your provider credentials in its `config/ai.php` (publish it with
+`php artisan vendor:publish --provider="Laravel\Ai\AiServiceProvider"`) or simply
+set the relevant API key in your environment, e.g.:
+
+```ini
+ANTHROPIC_API_KEY=
+```
+
+This package's `provider` / `model` settings (below) select which configured
+laravel/ai provider and model to use.
+
 ## Configuration
 
 Configure the package in `config/auto-translatable.php`:
@@ -81,6 +95,7 @@ return [
     */
     'provider' => env('AUTO_TRANSLATABLE_PROVIDER', 'anthropic'),
     'model' => env('AUTO_TRANSLATABLE_MODEL', 'claude-3-5-sonnet-20241022'),
+    'request_timeout' => env('AUTO_TRANSLATABLE_REQUEST_TIMEOUT', 500), // seconds per request
 
     /*
     |--------------------------------------------------------------------------
