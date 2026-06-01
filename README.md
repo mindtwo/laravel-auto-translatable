@@ -29,6 +29,7 @@
   - [Direct Translation](#direct-translation)
   - [Model Translation](#model-translation)
   - [Chunking Strategies](#chunking-strategies)
+  - [Batch Translation (Structured Output)](#batch-translation-structured-output)
   - [Custom Post-Processors](#custom-post-processors)
 - [Link Replacement](#link-replacement)
 - [Events](#events)
@@ -46,6 +47,7 @@
   - **Markdown**: Respects document structure, never breaks mid-section
   - **Plain Text**: Chunks at paragraph, sentence, or word boundaries
   - **Configurable**: Set custom strategies per field
+- **Batch Translation** - Translate many short fields in a single structured-output request instead of one request per field, with automatic per-field fallback
 - **Automatic Link Replacement** - Localize internal links in markdown content
 - **Extensible Adapter System** - Built-in support for popular i18n packages:
   - `spatie/laravel-translatable`
@@ -104,6 +106,15 @@ return [
     */
     'chunk_size' => env('AUTO_TRANSLATABLE_CHUNK_SIZE', 80000),
     'output_tokens' => env('AUTO_TRANSLATABLE_OUTPUT_TOKENS', 100000),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Batch Translation (Structured Output)
+    |--------------------------------------------------------------------------
+    */
+    'batch_fields' => env('AUTO_TRANSLATABLE_BATCH_ENABLED', false),
+    'batch_max_tokens' => env('AUTO_TRANSLATABLE_BATCH_MAX_TOKENS', 1500), // max tokens for a field to be batched
+    'batch_max_fields' => env('AUTO_TRANSLATABLE_BATCH_MAX_FIELDS', 50),   // max fields per structured request
 
     /*
     |--------------------------------------------------------------------------
@@ -346,6 +357,73 @@ $result = $translator->translate(
     options: ['chunking_strategy' => 'none']
 );
 ```
+
+### Batch Translation (Structured Output)
+
+The default flow issues one AI request per field, per locale. That is ideal for a blog post
+with a long body, but inefficient for models with many short attributes — a product with 10
+attributes × 5 locales would make 50 sequential requests.
+
+Batch translation collapses all *small* fields of a record into a **single structured-output
+request per locale**, decoding the response straight back into the individual fields. Fewer
+round-trips means faster translation, and translating the fields together keeps terminology
+consistent across them.
+
+Enable it in config (opt-in, off by default):
+
+```php
+'batch_fields' => true,
+'batch_max_tokens' => 1500, // only fields at or below this token count are batched
+'batch_max_fields' => 50,   // larger sets are split across multiple requests
+```
+
+Then translate as usual — no model changes required:
+
+```php
+$product->autoTranslate();
+```
+
+**How fields are routed**
+
+- Fields with a token count at or below `batch_max_tokens` are translated together in one
+  structured request.
+- Larger fields keep using the per-field [chunking](#chunking-strategies) path, so long
+  markdown still chunks correctly. Batching and chunking are mutually exclusive per field.
+- If only one field is eligible, it uses the normal per-field path (a one-field batch saves
+  nothing and loses error isolation).
+
+**Resilient by design**
+
+If a batched request fails, or the model omits a field from its structured response, those
+fields are automatically retried individually. A partial or failed batch never loses data —
+it only costs the affected fields an extra request.
+
+Each field is still tracked by its own `TranslationResult` (with `metadata.batched = true`)
+and still fires `TranslationCompleted` / `ModelTranslationCompleted`, so events, status
+tracking, and adapters behave exactly as with per-field translation.
+
+#### Direct batch translation
+
+`TranslationService::translateMany()` batches an arbitrary keyed set of strings without a
+model. It always batches (independent of the `batch_fields` config) and returns a collection
+keyed by your input keys:
+
+```php
+$results = $translator->translateMany(
+    strings: [
+        'name' => 'Red Chair',
+        'subtitle' => 'Comfortable and durable',
+        'cta' => 'Add to cart',
+    ],
+    sourceLocale: 'en',
+    targetLocale: 'de',
+);
+
+echo $results['name']->translated_content; // "Roter Stuhl"
+```
+
+Keys missing from the structured response are recovered with individual requests, mirroring
+the model batch behavior.
 
 ### Custom Post-Processors
 
