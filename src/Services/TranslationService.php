@@ -85,45 +85,52 @@ class TranslationService
         /** @var Collection<string, TranslationResult> $results */
         $results = collect();
 
-        $pending = [];
+        // Cap how many strings go into a single structured request so a large
+        // set is split across requests instead of overflowing the output-token
+        // budget (which would fail the whole batch and fall back per field).
+        $maxFields = max(1, Config::int('auto-translatable.batch_max_fields', 50));
 
-        foreach ($strings as $key => $content) {
-            $pending[$key] = TranslationResult::query()->create([
-                'source_locale' => $sourceLocale,
-                'target_locale' => $targetLocale,
-                'source_content' => $content,
-                'status' => TranslationStatus::PENDING,
-            ]);
-        }
+        foreach (array_chunk($strings, $maxFields, true) as $group) {
+            $pending = [];
 
-        $translated = $this->translateFieldsSafely($strings, $sourceLocale, $targetLocale, $options);
+            foreach ($group as $key => $content) {
+                $pending[$key] = TranslationResult::query()->create([
+                    'source_locale' => $sourceLocale,
+                    'target_locale' => $targetLocale,
+                    'source_content' => $content,
+                    'status' => TranslationStatus::PENDING,
+                ]);
+            }
 
-        foreach ($strings as $key => $content) {
-            $result = $pending[$key];
+            $translated = $this->translateFieldsSafely($group, $sourceLocale, $targetLocale, $options);
 
-            if (isset($translated[$key])) {
-                $result->markAsCompleted($translated[$key], $this->directMetadata() + ['batched' => true]);
+            foreach ($group as $key => $content) {
+                $result = $pending[$key];
+
+                if (isset($translated[$key])) {
+                    $result->markAsCompleted($translated[$key], $this->directMetadata() + ['batched' => true]);
+                    $results[$key] = $result;
+
+                    continue;
+                }
+
+                // The key was missing from the structured response (or the whole
+                // call failed): translate it on its own as a fallback.
+                try {
+                    $translatedContent = $this->performTranslation(
+                        $content,
+                        $sourceLocale,
+                        $targetLocale,
+                        $result,
+                        $options,
+                    );
+                    $result->markAsCompleted($translatedContent, $this->directMetadata());
+                } catch (Exception $e) {
+                    $result->markAsFailed($e->getMessage());
+                }
+
                 $results[$key] = $result;
-
-                continue;
             }
-
-            // The key was missing from the structured response (or the whole
-            // call failed): translate it on its own as a fallback.
-            try {
-                $translatedContent = $this->performTranslation(
-                    $content,
-                    $sourceLocale,
-                    $targetLocale,
-                    $result,
-                    $options,
-                );
-                $result->markAsCompleted($translatedContent, $this->directMetadata());
-            } catch (Exception $e) {
-                $result->markAsFailed($e->getMessage());
-            }
-
-            $results[$key] = $result;
         }
 
         return $results;
@@ -434,11 +441,10 @@ class TranslationService
      */
     protected function modelMetadata(Model $model): array
     {
-        return [
-            'provider' => Config::string('auto-translatable.provider').':'.Config::string('auto-translatable.model'),
+        return array_merge($this->directMetadata(), [
             'model' => $model->getMorphClass(),
             'model_id' => $model->getKey(),
-        ];
+        ]);
     }
 
     /**
@@ -449,8 +455,7 @@ class TranslationService
     protected function directMetadata(): array
     {
         return [
-            'provider' => Config::string('auto-translatable.provider'),
-            'model' => Config::string('auto-translatable.model'),
+            'provider' => Config::string('auto-translatable.provider').':'.Config::string('auto-translatable.model'),
         ];
     }
 
