@@ -2,12 +2,9 @@
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
+use Mindtwo\AutoTranslatable\Services\TranslationAgent;
 use Mindtwo\AutoTranslatable\Services\TranslationService;
 use Mindtwo\AutoTranslatable\Tests\Support\TestLinkMappingResolver;
-use Prism\Prism\Enums\FinishReason;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\TextResponseFake;
-use Prism\Prism\ValueObjects\Usage;
 
 uses(RefreshDatabase::class);
 
@@ -39,12 +36,7 @@ it('replaces internal relative links using mapping', function (): void {
         Lesen Sie auch unseren [Blog-Beitrag](/blog/hello-world) über Laravel.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(50, 60)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -72,12 +64,7 @@ it('replaces internal full URLs using mapping', function (): void {
         Besuchen Sie [unsere Laravel-Seite](https://example.com/products/laravel), um mehr zu erfahren.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(30, 35)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -103,12 +90,7 @@ it('uses dynamic resolver for unmapped internal links', function (): void {
         Siehe die [API-Referenz](/api/v1/users) für Details.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(25, 30)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -134,12 +116,7 @@ it('keeps external links unchanged', function (): void {
         Schauen Sie sich [GitHub](https://github.com) und [Stack Overflow](https://stackoverflow.com) an.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(30, 35)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -167,12 +144,7 @@ it('removes unmapped internal links when configured to remove', function (): voi
         Besuchen Sie unser [Hilfezentrum](/help/support) für Unterstützung.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(20, 25)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -201,12 +173,7 @@ it('keeps unmapped internal links when configured to keep', function (): void {
         Besuchen Sie unser [Hilfezentrum](/help/support) für Unterstützung.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(20, 25)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -233,12 +200,7 @@ it('warns about unmapped internal links when configured to warn', function (): v
         Besuchen Sie unser [Hilfezentrum](/help/support) für Unterstützung.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(20, 25)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -270,12 +232,7 @@ it('handles mixed internal and external links', function (): void {
         - [GitHub](https://github.com) - Externer Service
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(60, 70)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -307,12 +264,7 @@ it('handles links with complex text containing special characters', function ():
         Schauen Sie sich [Laravels „magische" Methoden](/docs/getting-started) und [API (v2)](/api/v2/endpoints) an.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(40, 45)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -341,12 +293,7 @@ it('works when link replacement is disabled', function (): void {
         Siehe unseren [Leitfaden für den Einstieg](/docs/getting-started).
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(20, 25)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -376,12 +323,7 @@ it('handles multiple occurrences of the same link', function (): void {
         Dann üben Sie mit dem [Leitfaden](/docs/getting-started) noch einmal.
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(40, 45)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -416,12 +358,7 @@ it('handles links in code blocks correctly', function (): void {
         ```
         MD;
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText($translatedContent)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(35, 40)),
-    ]);
+    TranslationAgent::fake([$translatedContent]);
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');

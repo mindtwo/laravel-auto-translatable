@@ -8,13 +8,9 @@ use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
 use Mindtwo\AutoTranslatable\Events\TranslationFailed;
 use Mindtwo\AutoTranslatable\Jobs\TranslateContent;
 use Mindtwo\AutoTranslatable\Models\TranslationResult;
+use Mindtwo\AutoTranslatable\Services\TranslationAgent;
 use Mindtwo\AutoTranslatable\Services\TranslationProvider;
 use Mindtwo\AutoTranslatable\Tests\Support\SpatieArticle;
-use Prism\Prism\Enums\FinishReason;
-use Prism\Prism\Exceptions\PrismException;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\TextResponseFake;
-use Prism\Prism\ValueObjects\Usage;
 
 uses(RefreshDatabase::class);
 
@@ -51,17 +47,13 @@ it('translates a model with markdown content requiring chunking', function (): v
     $chunk1Translation = file_get_contents(__DIR__.'/../Fixtures/long-de-1.md');
     $chunk2Translation = file_get_contents(__DIR__.'/../Fixtures/long-de-2.md');
 
-    // Set up Prism fake responses for multiple chunks
-    $fake = Prism::fake([
-        TextResponseFake::make()
-            ->withText($chunk1Translation)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(1500, 1600)),
-        TextResponseFake::make()
-            ->withText($chunk2Translation)
-            ->withFinishReason(FinishReason::Stop)
-            ->withUsage(new Usage(1400, 1500)),
-    ]);
+    // Capture every prompt so we can assert one provider request was made per chunk
+    $prompts = [];
+    TranslationAgent::fake(function (string $prompt) use (&$prompts, $chunk1Translation, $chunk2Translation): string {
+        $prompts[] = $prompt;
+
+        return count($prompts) === 1 ? $chunk1Translation : $chunk2Translation;
+    });
 
     // Execute translation
     $article->autoTranslate();
@@ -102,8 +94,9 @@ it('translates a model with markdown content requiring chunking', function (): v
     expect($article->getTranslationResult('content', 'de')->id)
         ->toBe($result->id);
 
-    // Verify Prism was called twice (once per chunk)
-    $fake->assertCallCount(2);
+    // The content was chunked into two pieces: one provider request per chunk
+    expect($prompts)->toHaveCount(2)
+        ->and($prompts)->toHaveCount($result->chunks_count);
 })->group('model');
 
 it('translates model with job execution', function (): void {
@@ -152,7 +145,7 @@ it('handles translation failure and dispatches TranslationFailed event', functio
     // Mock the TranslationProvider to throw an exception
     $mockProvider = Mockery::mock(TranslationProvider::class);
     $mockProvider->shouldReceive('translateChunk')
-        ->andThrow(new PrismException('API rate limit exceeded'));
+        ->andThrow(new RuntimeException('API rate limit exceeded'));
 
     app()->instance(TranslationProvider::class, $mockProvider);
 

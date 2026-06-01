@@ -4,6 +4,18 @@ All notable changes to `mindtwo/laravel-auto-translatable` are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-06-01
+
+### Added
+- Configurable per-request timeout via `auto-translatable.request_timeout` (`AUTO_TRANSLATABLE_REQUEST_TIMEOUT`), defaulting to the previous hard-coded 500 seconds.
+
+### Changed
+- **BREAKING:** Replaced the `prism-php/prism` AI backend with Laravel's first-party `laravel/ai` (`^0.7`). Translations now run through a `TranslationAgent` built on `Laravel\Ai`. See [UPGRADING.md](UPGRADING.md).
+- **BREAKING:** Raised the minimum PHP version to `^8.3` and dropped Laravel 11 support (`illuminate/* ^12.0||^13.0`), matching laravel/ai's requirements.
+
+### Notes
+- The package's own config keys (`provider`, `model`, `output_tokens`, …) and public API are unchanged. Consumers must configure provider credentials in laravel/ai's `config/ai.php` (e.g. `ANTHROPIC_API_KEY`) instead of `config/prism.php`.
+
 ## [0.2.0] — 2026-05-21
 
 ### Added

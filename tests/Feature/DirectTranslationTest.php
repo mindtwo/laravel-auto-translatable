@@ -3,11 +3,9 @@
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
 use Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer;
+use Mindtwo\AutoTranslatable\Services\TranslationAgent;
 use Mindtwo\AutoTranslatable\Services\TranslationService;
 use Mindtwo\AutoTranslatable\Tests\Support\PlaceholderTokenizer;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\TextResponseFake;
-use Prism\Prism\ValueObjects\Usage;
 
 uses(RefreshDatabase::class);
 
@@ -24,12 +22,13 @@ it('translates simple content without chunking', function (): void {
     $sourceContent = "# Hello World\n\nThis is a test.";
     $expectedTranslation = "# Hallo Welt\n\nDas ist ein Test.";
 
-    // Fake Prism response
-    $fake = Prism::fake([
-        TextResponseFake::make()
-            ->withText($expectedTranslation)
-            ->withUsage(new Usage(10, 20)),
-    ]);
+    // Capture every prompt sent to the provider so we can assert the request count
+    $prompts = [];
+    TranslationAgent::fake(function (string $prompt) use (&$prompts, $expectedTranslation): string {
+        $prompts[] = $prompt;
+
+        return $expectedTranslation;
+    });
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -40,8 +39,9 @@ it('translates simple content without chunking', function (): void {
         ->and($result->target_locale)->toBe('de')
         ->and($result->chunks_count)->toBe(1);
 
-    // Assert Prism was called correctly
-    $fake->assertCallCount(1);
+    // Short content is not chunked: exactly one provider request carrying the source
+    expect($prompts)->toHaveCount(1)
+        ->and($prompts[0])->toContain('Hello World');
 });
 
 it('translates large content with multiple chunks', function (): void {
@@ -50,15 +50,13 @@ it('translates large content with multiple chunks', function (): void {
     $chunk1Translation = "# Großes Dokument\n\nTest Inhalt";
     $chunk2Translation = "Test Inhalt\n\n Ende des Dokuments.";
 
-    // Fake responses for both chunks
-    $fake = Prism::fake([
-        TextResponseFake::make()
-            ->withText($chunk1Translation)
-            ->withUsage(new Usage(1500, 1500)),
-        TextResponseFake::make()
-            ->withText($chunk2Translation)
-            ->withUsage(new Usage(1500, 1500)),
-    ]);
+    // Capture every prompt so we can assert one provider request was made per chunk
+    $prompts = [];
+    TranslationAgent::fake(function (string $prompt) use (&$prompts, $chunk1Translation, $chunk2Translation): string {
+        $prompts[] = $prompt;
+
+        return count($prompts) === 1 ? $chunk1Translation : $chunk2Translation;
+    });
 
     $service = app(TranslationService::class);
     $result = $service->translate($sourceContent, 'en', 'de');
@@ -69,6 +67,6 @@ it('translates large content with multiple chunks', function (): void {
         ->and($result->translated_content)->toContain('Test Inhalt')
         ->and($result->translated_content)->toContain('Ende des Dokuments.');
 
-    // Assert Prism was called for each chunk
-    $fake->assertCallCount($result->chunks_count);
+    // The content was chunked: one provider request per chunk
+    expect($prompts)->toHaveCount($result->chunks_count);
 });
