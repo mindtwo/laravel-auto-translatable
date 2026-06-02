@@ -2,6 +2,7 @@
 
 namespace Mindtwo\AutoTranslatable\Services;
 
+use Laravel\Ai\Responses\StructuredAgentResponse;
 use LaravelLang\NativeLocaleNames\LocaleNames;
 
 class TranslationProvider
@@ -29,20 +30,70 @@ class TranslationProvider
     }
 
     /**
-     * Build the system prompt for plain-text translation.
+     * Translate multiple fields in a single structured request.
+     *
+     * Returns a map of field => translated content. Fields that the model
+     * omits from its structured response are left out of the result, so the
+     * caller can decide how to recover them.
+     *
+     * @param array<string, string> $fields field => source content
+     * @param array<string, mixed> $options
+     *
+     * @return array<string, string>
      */
-    protected function buildSystemPromptPlain(): string
+    public function translateFields(
+        array $fields,
+        string $sourceLocale,
+        string $targetLocale,
+        array $options,
+    ): array {
+        $prompt = $this->buildFieldsPrompt($fields, $sourceLocale, $targetLocale, $options);
+
+        $response = (new StructuredTranslationAgent($this->buildSystemPromptStructured(), array_keys($fields)))
+            ->prompt($prompt);
+
+        $structured = $response instanceof StructuredAgentResponse ? $response->structured : [];
+
+        $translated = [];
+
+        foreach (array_keys($fields) as $field) {
+            $value = $structured[$field] ?? null;
+
+            if (is_string($value) && $value !== '') {
+                $translated[$field] = mb_trim($value);
+            }
+        }
+
+        return $translated;
+    }
+
+    /**
+     * The translation rules shared by every system prompt variant.
+     */
+    protected function translationRules(): string
     {
         return <<<'PROMPT'
-            You are a precise technical translator specializing in text content.
-
-            Your translation rules:
             1. Translate text 1:1 - no semantic adjustments, no cuts, no additions, no explanations
             2. Preserve ALL original syntax exactly: [links](url), **bold**, *italic*, `code`, etc.
             3. Never translate: URLs, code blocks, inline code, HTML tags, image paths
             4. Maintain paragraph structure and line breaks exactly as in the source
             5. Keep technical terms accurate
             6. Preserve all whitespace and formatting
+            PROMPT;
+    }
+
+    /**
+     * Build the system prompt for plain-text translation.
+     */
+    protected function buildSystemPromptPlain(): string
+    {
+        $rules = $this->translationRules();
+
+        return <<<PROMPT
+            You are a precise technical translator specializing in text content.
+
+            Your translation rules:
+            {$rules}
             7. Do not add any commentary or notes - only output the translated content
             PROMPT;
     }
@@ -52,20 +103,35 @@ class TranslationProvider
      */
     protected function buildSystemPromptMarkdown(): string
     {
-        return <<<'PROMPT'
+        $rules = $this->translationRules();
+
+        return <<<PROMPT
             You are a precise technical translator specializing in markdown content.
 
             Your translation rules:
-            1. Translate text 1:1 - no semantic adjustments, no cuts, no additions, no explanations
-            2. Preserve ALL markdown syntax exactly: [links](url), **bold**, *italic*, `code`, etc.
-            3. Never translate: URLs, code blocks, inline code, HTML tags, image paths
-            4. Maintain paragraph structure and line breaks exactly as in the source
-            5. Keep technical terms accurate
-            6. Preserve all whitespace and formatting
+            {$rules}
             7. Do not add any commentary or notes - only output the translated markdown
             8. Do not output any additional horizontal rules
 
             The output must be valid markdown that can be parsed identically to the source, just in a different language.
+            PROMPT;
+    }
+
+    /**
+     * Build the system prompt for batched, structured translation of multiple fields.
+     */
+    protected function buildSystemPromptStructured(): string
+    {
+        $rules = $this->translationRules();
+
+        return <<<PROMPT
+            You are a precise technical translator translating the fields of a single record.
+
+            Your translation rules:
+            {$rules}
+            7. Translate only the field values, never the field names
+            8. Return every field under its exact key in the structured response
+            9. Keep terminology consistent across all fields of the record
             PROMPT;
     }
 
@@ -96,6 +162,38 @@ class TranslationProvider
             : "Translate the following content from {$sourceLanguage} to {$targetLanguage}:\n";
 
         return $prompt.$content;
+    }
+
+    /**
+     * Build the user prompt that lists every field to translate in one request.
+     *
+     * @param array<string, string> $fields
+     * @param array<string, mixed> $options
+     */
+    protected function buildFieldsPrompt(
+        array $fields,
+        string $sourceLocale,
+        string $targetLocale,
+        array $options,
+    ): string {
+        $sourceLanguage = $this->getLanguageName($sourceLocale);
+        $targetLanguage = $this->getLanguageName($targetLocale);
+
+        $prompt = '';
+
+        if (isset($options['prompt_additions']) && is_scalar(
+            $options['prompt_additions'],
+        ) && $options['prompt_additions']) {
+            $prompt .= (string) $options['prompt_additions']."\n";
+        }
+
+        $prompt .= "Translate each of the following fields from {$sourceLanguage} to {$targetLanguage}.\n";
+
+        foreach ($fields as $field => $content) {
+            $prompt .= "\n=== FIELD: {$field} ===\n{$content}\n";
+        }
+
+        return $prompt;
     }
 
     /**

@@ -52,6 +52,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Batch Translation (Structured Output)
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, short attributes are translated together in a single
+    | structured-output request per locale instead of one request per field.
+    | This greatly reduces processing time for models with many small fields
+    | (e.g. products) at the cost of per-field error isolation.
+    |
+    | Only fields that fit without chunking are eligible: a field is batched
+    | when its token count is <= batch_max_tokens. Larger fields keep using the
+    | per-field chunking path. If a batched request fails or omits a field, that
+    | field is automatically retried on its own, so no data is lost.
+    |
+    | batch_max_fields caps how many fields go into one request; larger sets are
+    | split across multiple requests to stay within the output token budget.
+    |
+    */
+
+    'batch_fields' => env('AUTO_TRANSLATABLE_BATCH_ENABLED', false),
+
+    'batch_max_tokens' => env('AUTO_TRANSLATABLE_BATCH_MAX_TOKENS', 1500),
+
+    'batch_max_fields' => env('AUTO_TRANSLATABLE_BATCH_MAX_FIELDS', 50),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Locales
     |--------------------------------------------------------------------------
     */

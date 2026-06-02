@@ -55,6 +55,7 @@ class AutoTranslatableServiceProvider extends PackageServiceProvider
             fn (Application $app): TranslationService => new TranslationService(
                 $app->make(ChunkingStrategyResolver::class),
                 $app->make(TranslationProvider::class),
+                $app->make(Tokenizer::class),
             ),
         );
 
