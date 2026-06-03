@@ -1,5 +1,37 @@
 # Upgrading
 
+## Upgrading from 0.3.0 to 0.4.0
+
+`0.4.0` is an **additive, non-breaking** release. The new batch-translation mode
+is opt-in and disabled by default, so existing applications keep their current
+per-field behavior with no changes.
+
+### What you need to do
+
+Nothing is required to upgrade. To adopt batch translation, set
+`auto-translatable.batch_fields` to `true` (or `AUTO_TRANSLATABLE_BATCH_ENABLED=true`)
+and optionally tune `batch_max_tokens` / `batch_max_fields`. See the
+[Batch Translation](README.md#batch-translation-structured-output) section of the
+README.
+
+### One thing to be aware of
+
+`TranslationService`'s constructor gained a third dependency,
+`Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer`:
+
+```php
+public function __construct(
+    protected ChunkingStrategyResolver $strategyResolver,
+    protected TranslationProvider $provider,
+    protected Tokenizer $tokenizer, // new in 0.4.0
+) {}
+```
+
+If you resolve `TranslationService` from the container (the documented approach,
+including constructor injection), this is handled automatically and **no change is
+needed**. Only update your call site if you instantiate the service manually with
+`new TranslationService(...)`.
+
 ## Upgrading from 0.2.0 to 0.3.0
 
 `0.3.0` replaces the `prism-php/prism` AI backend with Laravel's first-party

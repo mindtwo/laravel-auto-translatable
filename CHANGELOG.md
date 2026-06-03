@@ -4,6 +4,20 @@ All notable changes to `mindtwo/laravel-auto-translatable` are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-06-03
+
+### Added
+- **Batch translation via structured output.** With the new opt-in `auto-translatable.batch_fields` flag, short attributes of a model are translated together in a single structured-output request per locale instead of one request per field, collapsing N fields × M locales from N×M requests to M. Built on a new `StructuredTranslationAgent` (implementing `laravel/ai`'s `HasStructuredOutput`) and `TranslationProvider::translateFields()`.
+- `TranslationService::translateMany()` for translating an arbitrary keyed set of strings in a single batched request without a model.
+- Three config keys: `batch_fields` (`AUTO_TRANSLATABLE_BATCH_ENABLED`, default `false`), `batch_max_tokens` (`AUTO_TRANSLATABLE_BATCH_MAX_TOKENS`, default `1500`) controlling which fields are small enough to batch, and `batch_max_fields` (`AUTO_TRANSLATABLE_BATCH_MAX_FIELDS`, default `50`) capping fields per request.
+
+### Changed
+- `TranslationService`'s constructor now also requires a `Mindtwo\AutoTranslatable\Services\Markdown\Tokenizer`. This is resolved automatically by the service container; no change is needed unless you instantiate the service manually. See [UPGRADING.md](UPGRADING.md).
+
+### Notes
+- Batch mode is **off by default**; existing per-field behavior is byte-identical when disabled. Batching and chunking are mutually exclusive per field — only fields at or below `batch_max_tokens` are batched, while larger fields keep using the per-field chunking path.
+- Batching is **resilient**: if a batched request fails or the model omits a field, the affected fields are automatically retried individually, so no data is lost. Per-field `TranslationResult` records, events, and adapters behave exactly as before (batched results carry `metadata.batched = true`).
+
 ## [0.3.0] — 2026-06-01
 
 ### Added
@@ -62,6 +76,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - Initial public release: AI-translation pipeline with markdown-aware chunking, plain-text and pass-through strategies, automatic link replacement, Spatie and mindtwo translatable adapters, and queueable translation jobs.
 
+[0.4.0]: https://github.com/mindtwo/laravel-auto-translatable/compare/0.3.0...0.4.0
+[0.3.0]: https://github.com/mindtwo/laravel-auto-translatable/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/mindtwo/laravel-auto-translatable/compare/0.1.4...0.2.0
 [0.1.4]: https://github.com/mindtwo/laravel-auto-translatable/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/mindtwo/laravel-auto-translatable/compare/0.1.2...0.1.3
