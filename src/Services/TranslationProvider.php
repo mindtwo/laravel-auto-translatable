@@ -4,6 +4,8 @@ namespace Mindtwo\AutoTranslatable\Services;
 
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use LaravelLang\NativeLocaleNames\LocaleNames;
+use Mindtwo\AutoTranslatable\Enums\TranslationApiCallKind;
+use Mindtwo\AutoTranslatable\Events\TranslationApiCallCompleted;
 
 class TranslationProvider
 {
@@ -25,6 +27,15 @@ class TranslationProvider
             : $this->buildSystemPromptPlain();
 
         $response = (new TranslationAgent($systemPrompt))->prompt($prompt);
+
+        TranslationApiCallCompleted::dispatch(
+            TranslationApiCallKind::Chunk,
+            $sourceLocale,
+            $targetLocale,
+            $response->usage,
+            $response->meta->provider,
+            $response->meta->model,
+        );
 
         return mb_trim($response->text);
     }
@@ -51,6 +62,16 @@ class TranslationProvider
 
         $response = (new StructuredTranslationAgent($this->buildSystemPromptStructured(), array_keys($fields)))
             ->prompt($prompt);
+
+        TranslationApiCallCompleted::dispatch(
+            TranslationApiCallKind::Fields,
+            $sourceLocale,
+            $targetLocale,
+            $response->usage,
+            $response->meta->provider,
+            $response->meta->model,
+            array_keys($fields),
+        );
 
         $structured = $response instanceof StructuredAgentResponse ? $response->structured : [];
 
