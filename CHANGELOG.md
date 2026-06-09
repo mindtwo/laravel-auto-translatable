@@ -4,7 +4,7 @@ All notable changes to `mindtwo/laravel-auto-translatable` are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] — Unreleased
+## [0.5.0] — 2026-06-09
 
 ### Added
 - **Per-call usage tracking.** A new `Mindtwo\AutoTranslatable\Events\TranslationApiCallCompleted` event is dispatched after every underlying agent call made by `TranslationProvider` — both single-content chunk calls and batched structured-output calls. The event carries the full `Laravel\Ai\Responses\Data\Usage` payload (prompt tokens, completion tokens, cache read/write tokens), the provider/model identity, the source/target locales, and the list of field keys covered by the call. This gives consumers an unambiguous, per-call signal for cost reporting and usage analytics without having to attribute tokens to individual `TranslationResult` rows (which is fundamentally ambiguous for batched calls).
