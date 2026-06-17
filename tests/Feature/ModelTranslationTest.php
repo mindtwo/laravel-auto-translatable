@@ -134,6 +134,82 @@ it('translates model with job execution', function (): void {
     Queue::assertPushed(TranslateContent::class, 2); // de and fr
 });
 
+it('translates into an explicit subset of locales via the locales option', function (): void {
+    Queue::fake();
+    config([
+        'auto-translatable.available_locales' => ['en', 'de', 'fr'],
+        'auto-translatable.queue_translations' => true,
+    ]);
+
+    $article = SpatieArticle::query()->create([
+        'title' => 'Test Article',
+        'content' => 'Some content.',
+    ]);
+
+    $article->autoTranslate(['locales' => ['fr']]);
+
+    // Only the requested locale is dispatched — not the other configured ones.
+    Queue::assertPushed(TranslateContent::class, 1);
+    Queue::assertPushed(TranslateContent::class, fn (TranslateContent $job): bool => $job->targetLocale === 'fr');
+});
+
+it('excludes the source locale even when explicitly requested', function (): void {
+    Queue::fake();
+    config([
+        'auto-translatable.available_locales' => ['en', 'de'],
+        'auto-translatable.queue_translations' => true,
+    ]);
+
+    $article = SpatieArticle::query()->create([
+        'title' => 'Test Article',
+        'content' => 'Some content.',
+    ]);
+
+    // 'en' is the source locale and must be skipped; only 'de' remains.
+    $article->autoTranslate(['locales' => ['en', 'de']]);
+
+    Queue::assertPushed(TranslateContent::class, 1);
+    Queue::assertPushed(TranslateContent::class, fn (TranslateContent $job): bool => $job->targetLocale === 'de');
+});
+
+it('does not forward the locales option to the translation job options', function (): void {
+    Queue::fake();
+    config([
+        'auto-translatable.available_locales' => ['en', 'de', 'fr'],
+        'auto-translatable.queue_translations' => true,
+    ]);
+
+    $article = SpatieArticle::query()->create([
+        'title' => 'Test Article',
+        'content' => 'Some content.',
+    ]);
+
+    $article->autoTranslate(['locales' => ['fr']]);
+
+    Queue::assertPushed(
+        TranslateContent::class,
+        fn (TranslateContent $job): bool => ! array_key_exists('locales', $job->options),
+    );
+});
+
+it('falls back to configured locales when the locales option is empty', function (): void {
+    Queue::fake();
+    config([
+        'auto-translatable.available_locales' => ['en', 'de', 'fr'],
+        'auto-translatable.queue_translations' => true,
+    ]);
+
+    $article = SpatieArticle::query()->create([
+        'title' => 'Test Article',
+        'content' => 'Some content.',
+    ]);
+
+    $article->autoTranslate(['locales' => []]);
+
+    // Empty subset → configured behaviour (de + fr, source en excluded).
+    Queue::assertPushed(TranslateContent::class, 2);
+});
+
 it('handles translation failure and dispatches TranslationFailed event', function (): void {
     Event::fake([TranslationFailed::class]);
 
