@@ -4,6 +4,14 @@ All notable changes to `mindtwo/laravel-auto-translatable` are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — Unreleased
+
+### Added
+- **Per-call target locales.** `HasAutoTranslations::autoTranslate()` now accepts an explicit `locales` option (`autoTranslate(['locales' => ['fr', 'nl']])`) to translate into exactly that subset instead of every configured locale. The source locale is still always excluded. This makes on-demand, user-triggered translation, retrying a single failed locale, and incrementally adding a locale first-class — the per-locale primitive previously only existed at the lower-level `TranslationService::translateModel()`. When the option is omitted (or empty / not a list of strings), behaviour is unchanged: the adapter's configured available locales are used.
+
+### Notes
+- Purely additive and backwards-compatible: existing callers that don't pass `locales` behave identically. The `locales` key is treated as control-only and is not forwarded into the translation/provider options.
+
 ## [0.5.0] — 2026-06-09
 
 ### Added

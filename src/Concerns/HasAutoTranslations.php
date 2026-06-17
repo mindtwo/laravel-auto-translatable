@@ -64,7 +64,14 @@ trait HasAutoTranslations
     }
 
     /**
-     * Translate every translatable attribute into every configured locale.
+     * Translate the translatable attributes into the configured locales, or
+     * into an explicit subset passed via the `locales` option.
+     *
+     * Pass `['locales' => ['fr', 'nl']]` to translate into exactly those
+     * locales (still excluding the source locale) — useful for on-demand,
+     * user-triggered translation, retrying a single failed locale, or
+     * incrementally adding a locale. When omitted, the adapter's configured
+     * available locales are used (translate into everything).
      *
      * @param array<string, mixed> $options
      */
@@ -76,7 +83,10 @@ trait HasAutoTranslations
 
         $adapter = app(TranslatableAdapter::class);
         $sourceLocale = $adapter->getSourceLocale($this);
-        $availableLocales = $adapter->getAvailableLocales($this);
+        $availableLocales = $this->resolveAutoTranslateLocales($adapter, $options);
+
+        // `locales` is a control-only option; don't forward it to the provider.
+        unset($options['locales']);
 
         // The source locale never needs to be translated into itself.
         $targetLocales = array_filter($availableLocales, fn (string $locale) => $locale !== $sourceLocale);
@@ -133,5 +143,29 @@ trait HasAutoTranslations
             ->where('target_locale', $locale)
             ->whereIn('status', [TranslationStatus::PENDING, TranslationStatus::PROCESSING])
             ->exists();
+    }
+
+    /**
+     * Resolve the locales to translate into: the explicit `locales` option
+     * when given a non-empty list of strings, otherwise the adapter's
+     * configured available locales.
+     *
+     * @param array<string, mixed> $options
+     *
+     * @return array<int, string>
+     */
+    protected function resolveAutoTranslateLocales(TranslatableAdapter $adapter, array $options): array
+    {
+        $requested = $options['locales'] ?? null;
+
+        if (is_array($requested)) {
+            $locales = array_values(array_filter($requested, 'is_string'));
+
+            if ($locales !== []) {
+                return $locales;
+            }
+        }
+
+        return $adapter->getAvailableLocales($this);
     }
 }

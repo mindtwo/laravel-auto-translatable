@@ -287,6 +287,11 @@ Choose the appropriate adapter in your config:
 // Translate to all configured locales
 $post->autoTranslate();
 
+// Or translate into an explicit subset of locales (the source locale is always
+// excluded). Useful for on-demand / user-triggered translation, retrying a
+// single failed locale, or incrementally adding a locale.
+$post->autoTranslate(['locales' => ['fr', 'nl']]);
+
 // Translations are queued by default
 // Set 'queue_translations' => false in config for synchronous translation
 
