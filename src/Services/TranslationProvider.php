@@ -2,6 +2,7 @@
 
 namespace Mindtwo\AutoTranslatable\Services;
 
+use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use LaravelLang\NativeLocaleNames\LocaleNames;
 use Mindtwo\AutoTranslatable\Enums\TranslationApiCallKind;
@@ -13,12 +14,14 @@ class TranslationProvider
      * Translate a single chunk through the configured AI provider.
      *
      * @param array<string, mixed> $options
+     * @param Model|null $translatable model being translated, for usage attribution (null for model-less calls)
      */
     public function translateChunk(
         string $content,
         string $sourceLocale,
         string $targetLocale,
         array $options,
+        ?Model $translatable = null,
     ): string {
         $prompt = $this->buildPrompt($content, $sourceLocale, $targetLocale, $options);
         $strategy = $options['chunking_strategy'] ?? 'none';
@@ -35,6 +38,8 @@ class TranslationProvider
             $response->usage,
             $response->meta->provider,
             $response->meta->model,
+            [],
+            $translatable,
         );
 
         return mb_trim($response->text);
@@ -49,6 +54,7 @@ class TranslationProvider
      *
      * @param array<string, string> $fields field => source content
      * @param array<string, mixed> $options
+     * @param Model|null $translatable model being translated, for usage attribution (null for model-less calls)
      *
      * @return array<string, string>
      */
@@ -57,6 +63,7 @@ class TranslationProvider
         string $sourceLocale,
         string $targetLocale,
         array $options,
+        ?Model $translatable = null,
     ): array {
         $prompt = $this->buildFieldsPrompt($fields, $sourceLocale, $targetLocale, $options);
 
@@ -71,6 +78,7 @@ class TranslationProvider
             $response->meta->provider,
             $response->meta->model,
             array_keys($fields),
+            $translatable,
         );
 
         $structured = $response instanceof StructuredAgentResponse ? $response->structured : [];

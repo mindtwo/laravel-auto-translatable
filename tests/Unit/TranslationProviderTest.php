@@ -1,5 +1,6 @@
 <?php declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
@@ -74,6 +75,7 @@ it('dispatches TranslationApiCallCompleted after a single-content chunk call', f
             && $event->fieldKeys === []
             && $event->provider === 'anthropic'
             && $event->model === 'claude-sonnet-4-5'
+            && ! $event->translatable instanceof Model
             && $event->usage->promptTokens === 120
             && $event->usage->completionTokens === 30
             && $event->usage->cacheReadInputTokens === 80,
@@ -105,6 +107,7 @@ it('dispatches TranslationApiCallCompleted after a batched fields call', functio
             && $event->fieldKeys === ['name', 'subtitle']
             && $event->provider === 'anthropic'
             && $event->model === 'claude-sonnet-4-5'
+            && ! $event->translatable instanceof Model
             && $event->usage->promptTokens === 400
             && $event->usage->completionTokens === 50,
     );

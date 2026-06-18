@@ -4,6 +4,14 @@ All notable changes to `mindtwo/laravel-auto-translatable` are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-06-18
+
+### Added
+- **Translated model on the usage event.** `TranslationApiCallCompleted` now carries the model being translated as `$event->translatable` (`?Model`). When a call originates from a model translation (`TranslationService::translateModel()` / `HasAutoTranslations::autoTranslate()`), the event names the concrete subject so consumers can attribute token usage and cost to it directly — locale alone was ambiguous. The model is threaded through `TranslationProvider::translateChunk()` / `translateFields()` (new optional trailing `?Model $translatable = null` parameter) and the corresponding `TranslationService` internals.
+
+### Notes
+- Purely additive and backwards-compatible: the new parameter and event property both default to `null`, so direct, model-less calls (`translate()` / `translateMany()`) and any existing `TranslationApiCallCompleted` listeners behave identically.
+
 ## [0.6.0] — 2026-06-17
 
 ### Added

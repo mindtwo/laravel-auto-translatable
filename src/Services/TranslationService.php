@@ -206,6 +206,7 @@ class TranslationService
      * Run the translation pipeline: chunk the content, translate each chunk, then post-process the result.
      *
      * @param array<string, mixed> $options
+     * @param Model|null $translatable model being translated, forwarded for usage attribution (null for model-less calls)
      */
     public function performTranslation(
         string $content,
@@ -213,6 +214,7 @@ class TranslationService
         string $targetLocale,
         TranslationResult $result,
         array $options,
+        ?Model $translatable = null,
     ): string {
         $result->markAsProcessing();
 
@@ -230,7 +232,13 @@ class TranslationService
         $translatedChunks = [];
 
         foreach ($chunks as $chunk) {
-            $translated = $this->provider->translateChunk($chunk, $sourceLocale, $targetLocale, $options);
+            $translated = $this->provider->translateChunk(
+                $chunk,
+                $sourceLocale,
+                $targetLocale,
+                $options,
+                $translatable,
+            );
 
             $translatedChunks[] = $translated;
         }
@@ -309,7 +317,7 @@ class TranslationService
                 );
             }
 
-            $translated = $this->translateFieldsSafely($group, $sourceLocale, $targetLocale, $options);
+            $translated = $this->translateFieldsSafely($group, $sourceLocale, $targetLocale, $options, $model);
 
             foreach ($group as $field => $content) {
                 $result = $pendingResults[$field];
@@ -361,6 +369,7 @@ class TranslationService
                 $targetLocale,
                 $result,
                 $this->fieldOptions($field, $options),
+                $model,
             );
 
             $result->markAsCompleted($translatedContent, $this->modelMetadata($model));
@@ -381,6 +390,7 @@ class TranslationService
      *
      * @param array<string, string> $fields
      * @param array<string, mixed> $options
+     * @param Model|null $translatable model being translated, forwarded for usage attribution (null for model-less calls)
      *
      * @return array<string, string>
      */
@@ -389,9 +399,10 @@ class TranslationService
         string $sourceLocale,
         string $targetLocale,
         array $options,
+        ?Model $translatable = null,
     ): array {
         try {
-            return $this->provider->translateFields($fields, $sourceLocale, $targetLocale, $options);
+            return $this->provider->translateFields($fields, $sourceLocale, $targetLocale, $options, $translatable);
         } catch (Exception) {
             return [];
         }

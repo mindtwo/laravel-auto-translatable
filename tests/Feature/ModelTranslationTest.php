@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
+use Mindtwo\AutoTranslatable\Events\TranslationApiCallCompleted;
 use Mindtwo\AutoTranslatable\Events\TranslationFailed;
 use Mindtwo\AutoTranslatable\Jobs\TranslateContent;
 use Mindtwo\AutoTranslatable\Models\TranslationResult;
@@ -97,6 +98,28 @@ it('translates a model with markdown content requiring chunking', function (): v
     // The content was chunked into two pieces: one provider request per chunk
     expect($prompts)->toHaveCount(2)
         ->and($prompts)->toHaveCount($result->chunks_count);
+})->group('model');
+
+it('carries the translated model on the usage event', function (): void {
+    Event::fake([TranslationApiCallCompleted::class]);
+
+    TranslationAgent::fake(fn (): string => 'Übersetzter Inhalt');
+
+    $article = SpatieArticle::query()->create([
+        'title' => 'Red Chair',
+        'content' => 'Comfortable and durable.',
+    ]);
+
+    $article->autoTranslate();
+
+    // The per-call usage event names the model so consumers can attribute the
+    // spend to a concrete subject (here: this article, translated into German).
+    Event::assertDispatched(
+        TranslationApiCallCompleted::class,
+        fn (TranslationApiCallCompleted $event): bool => $event->translatable instanceof SpatieArticle
+            && $event->translatable->is($article)
+            && $event->targetLocale === 'de',
+    );
 })->group('model');
 
 it('translates model with job execution', function (): void {

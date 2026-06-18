@@ -2,6 +2,7 @@
 
 namespace Mindtwo\AutoTranslatable\Events;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Events\Dispatchable;
 use Laravel\Ai\Responses\Data\Usage;
 use Mindtwo\AutoTranslatable\Enums\TranslationApiCallKind;
@@ -18,6 +19,11 @@ use Mindtwo\AutoTranslatable\Enums\TranslationApiCallKind;
  * and $fieldKeys lists the keys covered by the request. For a single-content
  * chunk call (the chunked-fallback path), $kind is {@see TranslationApiCallKind::Chunk}
  * and $fieldKeys is empty.
+ *
+ * When the call originates from a model translation ({@see \Mindtwo\AutoTranslatable\Services\TranslationService::translateModel()}
+ * / `HasAutoTranslations::autoTranslate()`), $translatable is the model being
+ * translated so consumers can attribute the cost to a concrete subject. It is
+ * null for direct, model-less calls (`translate()` / `translateMany()`).
  */
 class TranslationApiCallCompleted
 {
@@ -34,5 +40,6 @@ class TranslationApiCallCompleted
         public ?string $provider,
         public ?string $model,
         public array $fieldKeys = [],
+        public ?Model $translatable = null,
     ) {}
 }
