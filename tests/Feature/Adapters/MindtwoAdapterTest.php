@@ -8,6 +8,8 @@ use Mindtwo\AutoTranslatable\Adapters\MindtwoTranslatableAdapter;
 use Mindtwo\AutoTranslatable\Enums\TranslationStatus;
 use Mindtwo\AutoTranslatable\Models\TranslationResult;
 use Mindtwo\AutoTranslatable\Tests\Support\MindtwoArticle;
+use mindtwo\LaravelTranslatable\LaravelTranslatableServiceProvider;
+use mindtwo\LaravelTranslatable\Resolvers\LocaleResolver;
 
 uses(RefreshDatabase::class);
 
@@ -107,12 +109,14 @@ it('applies translations to model', function (): void {
     $results = collect([
         new TranslationResult([
             'field_name' => 'title',
+            'source_locale' => 'en',
             'target_locale' => 'de',
             'translated_content' => 'Deutscher Titel',
             'status' => TranslationStatus::COMPLETED,
         ]),
         new TranslationResult([
             'field_name' => 'title',
+            'source_locale' => 'en',
             'target_locale' => 'fr',
             'translated_content' => 'Should be skipped',
             'status' => TranslationStatus::PENDING,
@@ -167,4 +171,56 @@ it('throws exception when applying translations to unsupported model', function 
 
     expect(fn () => $adapter->applyTranslations($regularModel, $results))
         ->toThrow(InvalidArgumentException::class);
+});
+
+it('writes the target locale as a translation even when the resolver default equals it', function (): void {
+    // The real runtime: the resolver is a singleton and the default locale lives on the model.
+    $this->app->register(LaravelTranslatableServiceProvider::class);
+    config(['translatable.default_locale_on_model' => true]);
+
+    // A queue worker has no request context, so the resolver sits on whatever default was last set.
+    $resolver = resolve(LocaleResolver::class);
+    $resolver->setDefaultLocale('de');
+
+    $article = MindtwoArticle::query()->create(['title' => 'Test Article', 'content' => 'Original English content']);
+
+    (new MindtwoTranslatableAdapter)->applyTranslations($article, collect([
+        new TranslationResult([
+            'translatable_type' => $article->getMorphClass(),
+            'translatable_id' => $article->id,
+            'field_name' => 'content',
+            'source_locale' => 'en',
+            'target_locale' => 'de',
+            'source_content' => 'Original English content',
+            'translated_content' => 'Deutscher Inhalt',
+            'status' => TranslationStatus::COMPLETED,
+        ]),
+    ]));
+
+    expect($article->fresh()->getUntranslated('content'))->toBe('Original English content')
+        ->and($article->translations()->where('key', 'content')->where('locale', 'de')->value('text'))->toBe(
+            'Deutscher Inhalt',
+        )
+        ->and($resolver->getDefaultLocale())->toBe('de');
+});
+
+it('rejects a result that targets its own source locale', function (): void {
+    $article = MindtwoArticle::query()->create(['title' => 'Test Article', 'content' => 'Original English content']);
+
+    $apply = fn () => (new MindtwoTranslatableAdapter)->applyTranslations($article, collect([
+        new TranslationResult([
+            'translatable_type' => $article->getMorphClass(),
+            'translatable_id' => $article->id,
+            'field_name' => 'content',
+            'source_locale' => 'en',
+            'target_locale' => 'en',
+            'source_content' => 'Original English content',
+            'translated_content' => 'Rewritten content',
+            'status' => TranslationStatus::COMPLETED,
+        ]),
+    ]));
+
+    expect($apply)->toThrow(InvalidArgumentException::class)
+        ->and($article->fresh()->getUntranslated('content'))->toBe('Original English content')
+        ->and($article->translations()->count())->toBe(0);
 });
