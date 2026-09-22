@@ -4,6 +4,15 @@ All notable changes to `mindtwo/laravel-auto-translatable` are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-09-22
+
+### Fixed
+- **`MindtwoTranslatableAdapter::applyTranslations()` no longer overwrites the source attribute.** `HasTranslations::setTranslation()` (laravel-translatable ≥ 2.3) writes the model attribute instead of a translation row when the locale equals the `LocaleResolver` default. The adapter applied results from a queue worker, which carries no request context, so a target locale equal to the worker's fallback default (typically `de`) replaced the model's source text with the translation. The adapter now pins the resolver default to each result's `source_locale` while applying and restores it afterwards, so every target lands in a translation row regardless of the context it runs in.
+- **Results that target their own source locale are rejected** with an `InvalidArgumentException` before anything is written. The adapter only ever translates from the locale stored on the model, so such a result is a contract violation and now fails loudly instead of silently writing a row.
+
+### Changed
+- `mindtwo/laravel-translatable` dev requirement raised to `^2.3`, the first release whose `setTranslation()` routes default-locale writes to the model, so the test suite exercises the behaviour this fix guards.
+
 ## [0.7.0] — 2026-06-18
 
 ### Added

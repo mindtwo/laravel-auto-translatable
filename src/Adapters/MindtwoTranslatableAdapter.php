@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Mindtwo\AutoTranslatable\Contracts\TranslatableAdapter;
 use Mindtwo\AutoTranslatable\Models\TranslationResult;
 use Mindtwo\AutoTranslatable\Support\Config;
+use mindtwo\LaravelTranslatable\Resolvers\LocaleResolver;
 use mindtwo\LaravelTranslatable\Traits\HasTranslations;
 
 class MindtwoTranslatableAdapter implements TranslatableAdapter
@@ -65,6 +66,9 @@ class MindtwoTranslatableAdapter implements TranslatableAdapter
     /**
      * Persist the completed translation results onto the model.
      *
+     * Results always translate from the locale stored on the model itself (see getSourceLocale())
+     * into other locales, so every result is written as a translation, never as the model attribute.
+     *
      * @param Collection<int, TranslationResult> $results
      */
     public function applyTranslations(Model $model, Collection $results): void
@@ -75,20 +79,32 @@ class MindtwoTranslatableAdapter implements TranslatableAdapter
 
         assert(method_exists($model, 'setTranslation'));
 
-        foreach ($results as $result) {
-            if (! $result->isCompleted()) {
-                continue;
+        $completed = $results->filter(
+            fn (TranslationResult $result): bool => $result->isCompleted() && $result->field_name !== null && $result->field_name !== '',
+        );
+
+        foreach ($completed as $result) {
+            if ($result->target_locale === $result->source_locale) {
+                throw new InvalidArgumentException(
+                    "Translation result for [{$result->field_name}] targets its own source locale [{$result->source_locale}]",
+                );
             }
-
-            $fieldName = $result->field_name;
-
-            if (! $fieldName) {
-                continue;
-            }
-
-            $model->setTranslation($fieldName, $result->translated_content, $result->target_locale);
         }
 
-        $model->save();
+        // setTranslation() writes the model attribute when the locale equals the resolver default. A queue
+        // worker carries no request context, so pin the default to the locale the content was translated from.
+        $resolver = resolve(LocaleResolver::class);
+        $originalDefault = $resolver->getDefaultLocale();
+
+        try {
+            foreach ($completed as $result) {
+                $resolver->setDefaultLocale($result->source_locale);
+                $model->setTranslation($result->field_name, $result->translated_content, $result->target_locale);
+            }
+
+            $model->save();
+        } finally {
+            $resolver->setDefaultLocale($originalDefault);
+        }
     }
 }

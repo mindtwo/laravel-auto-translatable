@@ -21,7 +21,7 @@
     "require-dev": {
         "chiiya/code-style-php": "^3.3",
         "larastan/larastan": "^3.0",
-        "mindtwo/laravel-translatable": "^2.1",
+        "mindtwo/laravel-translatable": "^2.3",
         "orchestra/testbench": "^10.0||^11.0",
         "pestphp/pest": "^4.3",
         "pestphp/pest-plugin-laravel": "^4.0",
