@@ -1,5 +1,49 @@
 # Upgrading
 
+## Upgrading from 0.7 to 0.8
+
+`0.8.0` moves to `laravel/ai` `^1.0`. Read the
+[laravel/ai upgrade guide](https://github.com/laravel/ai/blob/main/UPGRADE.md) for
+changes that affect your own use of laravel/ai (e.g. `laravel/mcp` must be `^1.0`,
+and Bedrock now needs `aws/aws-sdk-php` installed directly).
+
+```bash
+composer update mindtwo/laravel-auto-translatable laravel/ai -W
+```
+
+### `TranslationApiCallCompleted` listeners
+
+`$event->usage` is now a `Laravel\Ai\Responses\Data\TextUsage` and uses the
+laravel/ai 1.0 token names:
+
+```php
+// Before...
+$event->usage->promptTokens;
+$event->usage->completionTokens;
+
+// After...
+$event->usage->inputTokens;
+$event->usage->outputTokens;
+```
+
+The counts are now the provider's totals: `inputTokens` includes cache-read and
+cache-written tokens, and `outputTokens` includes reasoning tokens. If you store
+or price input tokens separately from cache tokens, use
+`$event->usage->uncachedInputTokens()` for the uncached share. The optional
+`cacheReadInputTokens`, `cacheWriteInputTokens` and `reasoningTokens` are `null`
+when the provider does not report them.
+
+### Tests that fake responses
+
+If your tests build `TextResponse` / `StructuredTextResponse` objects for
+`TranslationAgent::fake()` or `StructuredTranslationAgent::fake()`, pass a
+`TextUsage` instead of a `Usage`. Note the argument order: cache **read** comes
+before cache **write**.
+
+```php
+new TextUsage(inputTokens: 120, outputTokens: 30, cacheReadInputTokens: 80);
+```
+
 ## Upgrading from 0.3.0 to 0.4.0
 
 `0.4.0` is an **additive, non-breaking** release. The new batch-translation mode

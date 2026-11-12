@@ -4,14 +4,15 @@ namespace Mindtwo\AutoTranslatable\Events;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Events\Dispatchable;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Mindtwo\AutoTranslatable\Enums\TranslationApiCallKind;
+use Mindtwo\AutoTranslatable\Services\TranslationService;
 
 /**
  * Fired after every underlying agent call made by the package.
  *
  * One event per real API request, regardless of how many fields or
- * `TranslationResult` rows the request fed. Carries the full {@see Usage}
+ * `TranslationResult` rows the request fed. Carries the full {@see TextUsage}
  * payload so consumers can attribute tokens (and therefore cost) at the
  * call level — which is the only level where per-call usage is unambiguous.
  *
@@ -20,7 +21,7 @@ use Mindtwo\AutoTranslatable\Enums\TranslationApiCallKind;
  * chunk call (the chunked-fallback path), $kind is {@see TranslationApiCallKind::Chunk}
  * and $fieldKeys is empty.
  *
- * When the call originates from a model translation ({@see \Mindtwo\AutoTranslatable\Services\TranslationService::translateModel()}
+ * When the call originates from a model translation ({@see TranslationService::translateModel()}
  * / `HasAutoTranslations::autoTranslate()`), $translatable is the model being
  * translated so consumers can attribute the cost to a concrete subject. It is
  * null for direct, model-less calls (`translate()` / `translateMany()`).
@@ -36,7 +37,7 @@ class TranslationApiCallCompleted
         public TranslationApiCallKind $kind,
         public string $sourceLocale,
         public string $targetLocale,
-        public Usage $usage,
+        public TextUsage $usage,
         public ?string $provider,
         public ?string $model,
         public array $fieldKeys = [],
