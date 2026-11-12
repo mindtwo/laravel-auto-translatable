@@ -4,6 +4,15 @@ All notable changes to `mindtwo/laravel-auto-translatable` are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Requires `laravel/ai` `^1.0`** (previously `^0.7`). laravel/ai 1.0 is needed for MCP tools and current provider support; the package's agents and prompts work unchanged.
+- **`TranslationApiCallCompleted::$usage` is now a `Laravel\Ai\Responses\Data\TextUsage`** (previously `Usage`). It is the object laravel/ai 1.x attaches to text responses, so cache and reasoning counts are reachable with their real types.
+
+### Breaking
+- Token counts on the event follow laravel/ai 1.0: read `$event->usage->inputTokens` / `outputTokens` instead of `promptTokens` / `completionTokens`. `inputTokens` now **includes** cached and cache-written tokens and `outputTokens` includes reasoning tokens; use `uncachedInputTokens()` for the old uncached input count. The optional `cacheReadInputTokens`, `cacheWriteInputTokens` and `reasoningTokens` are `null` when the provider does not report them. See [UPGRADING.md](UPGRADING.md#upgrading-from-07-to-08).
+
 ## [0.7.1] — 2026-09-22
 
 ### Fixed
